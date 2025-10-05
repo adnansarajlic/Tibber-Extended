@@ -3,32 +3,34 @@
     "step": {
       "user": {
         "title": "Konfigurera Tibber Extended",
-        "description": "Ange din Tibber API-token och inställningar",
+        "description": "Ange dina inställningar för Tibber Extended. {demo_token_info}\n\nUppdateringstider: {time_format}",
         "data": {
-          "access_token": "API Token",
+          "access_token": "API Token (lämna tomt för demo-token)",
+          "home_name": "Hemnamn",
           "resolution": "Prisupplösning",
-          "update_hour": "Uppdateringstimme (0-23)",
-          "update_minute": "Uppdateringsminut (0-59)"
+          "update_times": "Uppdateringstider (HH:MM, separerade med komma)"
         }
       }
     },
     "error": {
-      "invalid_token": "Ogiltig API-token",
-      "cannot_connect": "Kunde inte ansluta",
-      "unknown": "Oväntat fel"
+      "invalid_token": "Ogiltig API-token. Kontrollera din token och försök igen.",
+      "invalid_time_format": "Ogiltigt tidsformat. Använd HH:MM (t.ex. 13:00, 15:00)",
+      "cannot_connect": "Kunde inte ansluta till Tibber API",
+      "unknown": "Ett oväntat fel inträffade"
     },
     "abort": {
-      "already_configured": "Redan konfigurerad"
+      "already_configured": "Denna integration är redan konfigurerad"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Uppdatera inställningar",
+        "title": "Uppdatera Tibber Extended-inställningar",
+        "description": "Uppdatera dina inställningar. Uppdateringstider: {time_format}",
         "data": {
+          "home_name": "Hemnamn",
           "resolution": "Prisupplösning",
-          "update_hour": "Uppdateringstimme (0-23)",
-          "update_minute": "Uppdateringsminut (0-59)"
+          "update_times": "Uppdateringstider (HH:MM, separerade med komma)"
         }
       }
     }
