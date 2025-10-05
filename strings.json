@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Tibber Extended",
+        "description": "Enter your Tibber API token and preferences",
+        "data": {
+          "access_token": "API Token",
+          "resolution": "Price Resolution",
+          "update_hour": "Update Hour (0-23)",
+          "update_minute": "Update Minute (0-59)"
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Invalid API token",
+      "cannot_connect": "Failed to connect",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update Settings",
+        "data": {
+          "resolution": "Price Resolution",
+          "update_hour": "Update Hour (0-23)",
+          "update_minute": "Update Minute (0-59)"
+        }
+      }
+    }
+  }
+}

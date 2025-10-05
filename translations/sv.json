@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfigurera Tibber Extended",
+        "description": "Ange din Tibber API-token och inställningar",
+        "data": {
+          "access_token": "API Token",
+          "resolution": "Prisupplösning",
+          "update_hour": "Uppdateringstimme (0-23)",
+          "update_minute": "Uppdateringsminut (0-59)"
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Ogiltig API-token",
+      "cannot_connect": "Kunde inte ansluta",
+      "unknown": "Oväntat fel"
+    },
+    "abort": {
+      "already_configured": "Redan konfigurerad"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Uppdatera inställningar",
+        "data": {
+          "resolution": "Prisupplösning",
+          "update_hour": "Uppdateringstimme (0-23)",
+          "update_minute": "Uppdateringsminut (0-59)"
+        }
+      }
+    }
+  }
+}
