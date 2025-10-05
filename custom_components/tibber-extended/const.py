@@ -4,11 +4,14 @@ DOMAIN = "tibber_extended"
 
 CONF_ACCESS_TOKEN = "access_token"
 CONF_RESOLUTION = "resolution"
-CONF_UPDATE_HOUR = "update_hour"
-CONF_UPDATE_MINUTE = "update_minute"
+CONF_UPDATE_TIMES = "update_times"
+CONF_HOME_NAME = "home_name"
 
-DEFAULT_UPDATE_HOUR = 15
-DEFAULT_UPDATE_MINUTE = 0
+# Tibber Demo Token - fungerar för testning men kan sluta fungera utan förvarning
+DEFAULT_DEMO_TOKEN = "3A77EECF61BD445F47241A5A36202185C35AF3AF58609E19B53F3A8872AD7BE1-1"
+
+# Default uppdateringstider (kl 13:00 och 15:00)
+DEFAULT_UPDATE_TIMES = ["14:00", "15:00"]
 
 RESOLUTION_OPTIONS = {
     "HOURLY": "Hourly",
