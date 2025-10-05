@@ -4,7 +4,7 @@
   <img src="https://github.com/adnansarajlic/tibber-extended/raw/main/logo.png" alt="Tibber Extended Logo" width="200"/>
 </p>
 
-En kraftfull custom integration som hämtar elpriser och prisnivåer från Tibber's API med avancerade funktioner.
+En kraftfull custom integration som hämtar elpriser och prisnivåer från Tibber's GraphQL API med avancerade funktioner.
 
 ## ✨ Funktioner
 
@@ -41,14 +41,14 @@ En kraftfull custom integration som hämtar elpriser och prisnivåer från Tibbe
 
 ### 1. Hämta din Tibber API Token (Valfritt)
 
-**OBS:** Du kan använda den inkluderade demo-token för testning, men den kan sluta fungera utan någon förvarning!
+**OBS:** Du kan använda den inkluderade demo-token för testning, men den kan sluta fungera utan förvarning!
 
 För produktionsanvändning, hämta din egen token:
 
 1. Gå till [Tibber Developer Portal](https://developer.tibber.com/)
 2. Logga in med ditt Tibber-konto
 3. Skapa en ny token under "Access Token"
-4. Kopiera token (börjar med något liknande: `5K4MVS-OjfWhK_4yrjOlFe1F6kJXPVf7eQYggo8ebAE`)
+4. Kopiera token (börjar med något liknande 64 tecken följt av `-1`)
 
 ### 2. Lägg till Integration
 
@@ -95,15 +95,15 @@ Integrationen skapar följande sensorer:
 
 ### 3. `sensor.[hemnamn]_today_prices`
 - **Beskrivning**: Dagens alla priser
-- **State**: Antal prispoäng (t.ex. 96 för QUARTER_HOURLY)
+- **State**: Antal prisposter (t.ex. 96 för QUARTER_HOURLY)
 - **Attribut**: 
-  - `prices`: Lista med alla prispoäng
+  - `prices`: Lista med alla prisposter
   - `resolution`: Upplösning
   - `min_price`: Lägsta pris idag
   - `max_price`: Högsta pris idag
   - `avg_price`: Medelpris idag
 
-**Exempel på prispoäng:**
+**Exempel på prispost:**
 ```json
 {
   "total": 0.0956,
