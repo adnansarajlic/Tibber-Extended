@@ -36,19 +36,29 @@ async def async_setup_entry(
 ) -> None:
     """Set up Tibber Extended sensors."""
     coordinator = TibberDataCoordinator(hass, entry)
-    await coordinator.async_config_entry_first_refresh()
-
-    entities = []
-    home_name = entry.data.get(CONF_HOME_NAME, "Mitt Hem")
     
-    # Skapa EN sensor per hem
+    # Försök hämta data första gången
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        _LOGGER.error("Failed to fetch initial data: %s", err)
+        # Fortsätt ändå, sensorer kommer uppdateras senare
+    
+    home_name = entry.data.get(CONF_HOME_NAME, "Mitt Hem")
+    entities = []
+    
+    # Skapa sensor även om ingen data finns än
     if coordinator.data:
         for home_id, home_data in coordinator.data.items():
-            entities.append(
-                TibberPriceSensor(coordinator, home_id, home_name)
-            )
+            _LOGGER.info(f"Creating sensor for home: {home_id}")
+            entities.append(TibberPriceSensor(coordinator, home_id, home_name))
+    else:
+        # Skapa en sensor med dummy home_id som kommer uppdateras senare
+        _LOGGER.warning("No data available yet, creating sensor anyway")
+        entities.append(TibberPriceSensor(coordinator, "pending", home_name))
 
-    async_add_entities(entities)
+    async_add_entities(entities, True)
+    _LOGGER.info(f"Added {len(entities)} Tibber sensors")
 
 
 class TibberDataCoordinator(DataUpdateCoordinator):
@@ -59,6 +69,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         self.token = entry.data[CONF_ACCESS_TOKEN]
         self.resolution = entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY")
         self.update_times = entry.data.get(CONF_UPDATE_TIMES, DEFAULT_UPDATE_TIMES)
+        self.entry = entry
         
         # Konvertera update_times till time-objekt
         self.update_times_parsed = []
@@ -75,12 +86,11 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         else:  # HOURLY
             self.sensor_update_interval = timedelta(hours=1)
 
-        # Vi uppdaterar inte automatiskt med interval, utan via time trigger
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=None,  # Ingen automatisk uppdatering av data-hämtning
+            update_interval=None,
         )
         
         # Sätt upp time-baserade triggers för data-hämtning
@@ -105,6 +115,8 @@ class TibberDataCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         """Fetch data from Tibber API."""
+        _LOGGER.debug(f"Fetching data with resolution: {self.resolution}")
+        
         query = """
         {
             viewer {
@@ -149,28 +161,54 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                     data = await response.json()
                     
                     if "errors" in data:
-                        raise UpdateFailed(f"GraphQL errors: {data['errors']}")
+                        error_msg = data['errors'][0].get('message', 'Unknown error')
+                        _LOGGER.error(f"GraphQL error: {error_msg}")
+                        raise UpdateFailed(f"GraphQL error: {error_msg}")
                     
                     # Parse the data
                     homes_data = {}
-                    for home in data["data"]["viewer"]["homes"]:
+                    viewer_data = data.get("data", {}).get("viewer", {})
+                    homes = viewer_data.get("homes", [])
+                    
+                    if not homes:
+                        _LOGGER.warning("No homes found in Tibber account")
+                        return homes_data
+                    
+                    for home in homes:
                         home_id = home["id"]
-                        price_info = home.get("currentSubscription", {}).get("priceInfo", {})
+                        subscription = home.get("currentSubscription")
+                        
+                        if not subscription:
+                            _LOGGER.warning(f"No subscription found for home {home_id}")
+                            continue
+                        
+                        price_info = subscription.get("priceInfo", {})
                         
                         homes_data[home_id] = {
                             "name": home.get("appNickname", "Home"),
                             "today": price_info.get("today", []),
                             "tomorrow": price_info.get("tomorrow", []),
                         }
+                        
+                        _LOGGER.debug(
+                            f"Home {home_id}: {len(homes_data[home_id]['today'])} today prices, "
+                            f"{len(homes_data[home_id]['tomorrow'])} tomorrow prices"
+                        )
                     
-                    _LOGGER.info(f"Successfully fetched data for {len(homes_data)} homes")
+                    _LOGGER.info(f"Successfully fetched data for {len(homes_data)} home(s)")
                     return homes_data
 
         except asyncio.TimeoutError as err:
+            _LOGGER.error(f"Timeout fetching data: {err}")
             raise UpdateFailed(f"Timeout fetching data: {err}")
         except aiohttp.ClientError as err:
+            _LOGGER.error(f"Network error: {err}")
             raise UpdateFailed(f"Error fetching data: {err}")
+        except KeyError as err:
+            _LOGGER.error(f"Unexpected API response structure: {err}")
+            raise UpdateFailed(f"Invalid API response: {err}")
         except Exception as err:
+            _LOGGER.error(f"Unexpected error: {err}")
             raise UpdateFailed(f"Unexpected error: {err}")
 
 
@@ -187,39 +225,70 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         self._attr_native_unit_of_measurement = "kr/kWh"
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:flash"
+        self._attr_available = False
         
-        # Sätt upp automatisk uppdatering av sensor-state (inte data-hämtning)
+        _LOGGER.info(f"Initialized sensor: {self._attr_name} (ID: {self._attr_unique_id})")
+        
+        # Sätt upp automatisk uppdatering av sensor-state
         self._setup_state_updates()
 
     def _setup_state_updates(self):
         """Setup automatic state updates based on resolution."""
-        # Uppdatera sensor-state automatiskt varje kvart/timme
         async_track_time_interval(
             self.hass,
             self._update_state,
             self.coordinator.sensor_update_interval
         )
+        _LOGGER.debug(
+            f"State updates every {self.coordinator.sensor_update_interval} "
+            f"for {self._attr_name}"
+        )
 
     async def _update_state(self, now=None):
         """Force sensor state update."""
         self.async_write_ha_state()
+        _LOGGER.debug(f"State updated for {self._attr_name}")
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        if not self.coordinator.last_update_success:
+            return False
+        
+        if not self.coordinator.data:
+            return False
+        
+        # Om vi använder "pending" home_id, uppdatera till rätt ID när data finns
+        if self._home_id == "pending" and self.coordinator.data:
+            first_home_id = list(self.coordinator.data.keys())[0]
+            self._home_id = first_home_id
+            _LOGGER.info(f"Updated home_id from pending to {first_home_id}")
+        
+        return self._home_id in self.coordinator.data
 
     @property
     def native_value(self):
         """Return the current price."""
-        if not self.coordinator.data or self._home_id not in self.coordinator.data:
+        if not self.available:
             return None
         
         now = dt_util.now()
         today_prices = self.coordinator.data[self._home_id]["today"]
         
+        if not today_prices:
+            return None
+        
         for price_point in today_prices:
-            start_time = dt_util.parse_datetime(price_point["startsAt"])
-            interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
-            end_time = start_time + timedelta(minutes=interval)
-            
-            if start_time <= now < end_time:
-                return round(price_point["total"], 4)
+            try:
+                start_time = dt_util.parse_datetime(price_point["startsAt"])
+                interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
+                end_time = start_time + timedelta(minutes=interval)
+                
+                if start_time <= now < end_time:
+                    return round(price_point["total"], 4)
+            except (KeyError, ValueError, TypeError) as err:
+                _LOGGER.error(f"Error parsing price point: {err}")
+                continue
         
         return None
 
@@ -241,36 +310,44 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
 
     def _get_current_level(self):
         """Get current price level."""
-        if not self.coordinator.data or self._home_id not in self.coordinator.data:
+        if not self.available:
             return "UNKNOWN"
         
         now = dt_util.now()
         today_prices = self.coordinator.data[self._home_id]["today"]
         
         for price_point in today_prices:
-            start_time = dt_util.parse_datetime(price_point["startsAt"])
-            interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
-            end_time = start_time + timedelta(minutes=interval)
-            
-            if start_time <= now < end_time:
-                return price_point.get("level", "UNKNOWN")
+            try:
+                start_time = dt_util.parse_datetime(price_point["startsAt"])
+                interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
+                end_time = start_time + timedelta(minutes=interval)
+                
+                if start_time <= now < end_time:
+                    return price_point.get("level", "UNKNOWN")
+            except (KeyError, ValueError, TypeError):
+                continue
         
         return "UNKNOWN"
 
     @property
     def extra_state_attributes(self):
         """Return the state attributes."""
-        if not self.coordinator.data or self._home_id not in self.coordinator.data:
-            return {}
+        if not self.available:
+            return {
+                "current_price": None,
+                "current_level": "UNKNOWN",
+                "resolution": self.coordinator.resolution,
+                "today": {"prices": [], "count": 0},
+                "tomorrow": {"prices": [], "count": 0},
+            }
         
         today_prices = self.coordinator.data[self._home_id]["today"]
         tomorrow_prices = self.coordinator.data[self._home_id]["tomorrow"]
         
-        # Beräkna statistik för idag
-        today_price_values = [p["total"] for p in today_prices]
-        tomorrow_price_values = [p["total"] for p in tomorrow_prices]
+        # Beräkna statistik
+        today_price_values = [p["total"] for p in today_prices if "total" in p]
+        tomorrow_price_values = [p["total"] for p in tomorrow_prices if "total" in p]
         
-        # Hitta nuvarande pris och nivå
         current_price = self.native_value
         current_level = self._get_current_level()
         
@@ -291,16 +368,16 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         # Statistik för idag
         if today_price_values:
             attrs["today"].update({
-                "min": min(today_price_values),
-                "max": max(today_price_values),
+                "min": round(min(today_price_values), 4),
+                "max": round(max(today_price_values), 4),
                 "avg": round(sum(today_price_values) / len(today_price_values), 4),
             })
         
         # Statistik för imorgon
         if tomorrow_price_values:
             attrs["tomorrow"].update({
-                "min": min(tomorrow_price_values),
-                "max": max(tomorrow_price_values),
+                "min": round(min(tomorrow_price_values), 4),
+                "max": round(max(tomorrow_price_values), 4),
                 "avg": round(sum(tomorrow_price_values) / len(tomorrow_price_values), 4),
             })
         
