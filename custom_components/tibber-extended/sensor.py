@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.event import async_track_time_change, async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -41,17 +41,12 @@ async def async_setup_entry(
     entities = []
     home_name = entry.data.get(CONF_HOME_NAME, "Mitt Hem")
     
-    # Skapa sensorer för varje hem från API
+    # Skapa EN sensor per hem
     if coordinator.data:
         for home_id, home_data in coordinator.data.items():
-            # Använd custom home_name från config istället för API nickname
-            entities.extend([
-                TibberCurrentPriceSensor(coordinator, home_id, home_name),
-                TibberCurrentLevelSensor(coordinator, home_id, home_name),
-                TibberTodayPricesSensor(coordinator, home_id, home_name),
-                TibberTomorrowPricesSensor(coordinator, home_id, home_name),
-                TibberCombinedPricesSensor(coordinator, home_id, home_name),  # NY: För Plotly
-            ])
+            entities.append(
+                TibberPriceSensor(coordinator, home_id, home_name)
+            )
 
     async_add_entities(entities)
 
@@ -74,15 +69,21 @@ class TibberDataCoordinator(DataUpdateCoordinator):
             except ValueError:
                 _LOGGER.error(f"Invalid time format: {time_str}")
 
+        # Beräkna uppdateringsintervall för sensorn baserat på resolution
+        if self.resolution == "QUARTER_HOURLY":
+            self.sensor_update_interval = timedelta(minutes=15)
+        else:  # HOURLY
+            self.sensor_update_interval = timedelta(hours=1)
+
         # Vi uppdaterar inte automatiskt med interval, utan via time trigger
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=None,  # Ingen automatisk uppdatering
+            update_interval=None,  # Ingen automatisk uppdatering av data-hämtning
         )
         
-        # Sätt upp time-baserade triggers
+        # Sätt upp time-baserade triggers för data-hämtning
         self._setup_time_triggers()
 
     def _setup_time_triggers(self):
@@ -95,11 +96,11 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                 minute=update_time.minute,
                 second=0,
             )
-            _LOGGER.info(f"Scheduled update at {update_time.hour:02d}:{update_time.minute:02d}")
+            _LOGGER.info(f"Scheduled data fetch at {update_time.hour:02d}:{update_time.minute:02d}")
 
     async def _handle_time_trigger(self, now):
         """Handle time-based update trigger."""
-        _LOGGER.info(f"Time trigger fired at {now}, updating Tibber data")
+        _LOGGER.info(f"Time trigger fired at {now}, fetching Tibber data")
         await self.async_request_refresh()
 
     async def _async_update_data(self):
@@ -173,19 +174,35 @@ class TibberDataCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Unexpected error: {err}")
 
 
-class TibberCurrentPriceSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for current electricity price."""
+class TibberPriceSensor(CoordinatorEntity, SensorEntity):
+    """Unified sensor for Tibber electricity prices."""
 
     def __init__(self, coordinator, home_id, home_name):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._home_id = home_id
         self._home_name = home_name
-        self._attr_name = f"{home_name} Current Price"
-        self._attr_unique_id = f"{home_id}_current_price"
+        self._attr_name = f"{home_name} Electricity Price"
+        self._attr_unique_id = f"{home_id}_electricity_price"
         self._attr_native_unit_of_measurement = "kr/kWh"
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:flash"
+        
+        # Sätt upp automatisk uppdatering av sensor-state (inte data-hämtning)
+        self._setup_state_updates()
+
+    def _setup_state_updates(self):
+        """Setup automatic state updates based on resolution."""
+        # Uppdatera sensor-state automatiskt varje kvart/timme
+        async_track_time_interval(
+            self.hass,
+            self._update_state,
+            self.coordinator.sensor_update_interval
+        )
+
+    async def _update_state(self, now=None):
+        """Force sensor state update."""
+        self.async_write_ha_state()
 
     @property
     def native_value(self):
@@ -206,43 +223,10 @@ class TibberCurrentPriceSensor(CoordinatorEntity, SensorEntity):
         
         return None
 
-
-class TibberCurrentLevelSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for current price level."""
-
-    def __init__(self, coordinator, home_id, home_name):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._home_id = home_id
-        self._home_name = home_name
-        self._attr_name = f"{home_name} Current Level"
-        self._attr_unique_id = f"{home_id}_current_level"
-        self._attr_icon = "mdi:chart-bell-curve"
-
-    @property
-    def native_value(self):
-        """Return the current price level."""
-        if not self.coordinator.data or self._home_id not in self.coordinator.data:
-            return None
-        
-        now = dt_util.now()
-        today_prices = self.coordinator.data[self._home_id]["today"]
-        
-        for price_point in today_prices:
-            start_time = dt_util.parse_datetime(price_point["startsAt"])
-            interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
-            end_time = start_time + timedelta(minutes=interval)
-            
-            if start_time <= now < end_time:
-                level = price_point.get("level", "UNKNOWN")
-                return level
-        
-        return "UNKNOWN"
-    
     @property
     def icon(self):
-        """Return icon based on price level."""
-        level = self.native_value
+        """Return icon based on current price level."""
+        level = self._get_current_level()
         if level == "VERY_CHEAP":
             return "mdi:arrow-down-bold"
         elif level == "CHEAP":
@@ -253,28 +237,25 @@ class TibberCurrentLevelSensor(CoordinatorEntity, SensorEntity):
             return "mdi:arrow-up"
         elif level == "VERY_EXPENSIVE":
             return "mdi:arrow-up-bold"
-        return "mdi:help-circle"
+        return "mdi:flash"
 
-
-class TibberTodayPricesSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for today's prices."""
-
-    def __init__(self, coordinator, home_id, home_name):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._home_id = home_id
-        self._home_name = home_name
-        self._attr_name = f"{home_name} Today Prices"
-        self._attr_unique_id = f"{home_id}_today_prices"
-        self._attr_icon = "mdi:chart-line"
-
-    @property
-    def native_value(self):
-        """Return number of price points."""
+    def _get_current_level(self):
+        """Get current price level."""
         if not self.coordinator.data or self._home_id not in self.coordinator.data:
-            return 0
+            return "UNKNOWN"
         
-        return len(self.coordinator.data[self._home_id]["today"])
+        now = dt_util.now()
+        today_prices = self.coordinator.data[self._home_id]["today"]
+        
+        for price_point in today_prices:
+            start_time = dt_util.parse_datetime(price_point["startsAt"])
+            interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
+            end_time = start_time + timedelta(minutes=interval)
+            
+            if start_time <= now < end_time:
+                return price_point.get("level", "UNKNOWN")
+        
+        return "UNKNOWN"
 
     @property
     def extra_state_attributes(self):
@@ -283,154 +264,44 @@ class TibberTodayPricesSensor(CoordinatorEntity, SensorEntity):
             return {}
         
         today_prices = self.coordinator.data[self._home_id]["today"]
-        
-        # Beräkna extra statistik
-        prices_only = [p["total"] for p in today_prices]
-        
-        attrs = {
-            "prices": today_prices,
-            "resolution": self.coordinator.resolution,
-        }
-        
-        if prices_only:
-            attrs.update({
-                "min_price": min(prices_only),
-                "max_price": max(prices_only),
-                "avg_price": round(sum(prices_only) / len(prices_only), 4),
-            })
-        
-        return attrs
-
-
-class TibberCombinedPricesSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for combined today and tomorrow prices - Perfect for Plotly graphs."""
-
-    def __init__(self, coordinator, home_id, home_name):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._home_id = home_id
-        self._home_name = home_name
-        self._attr_name = f"{home_name} Price Graph"
-        self._attr_unique_id = f"{home_id}_price_graph"
-        self._attr_icon = "mdi:chart-areaspline"
-
-    @property
-    def native_value(self):
-        """Return total number of price points."""
-        if not self.coordinator.data or self._home_id not in self.coordinator.data:
-            return 0
-        
-        today_count = len(self.coordinator.data[self._home_id]["today"])
-        tomorrow_count = len(self.coordinator.data[self._home_id]["tomorrow"])
-        return today_count + tomorrow_count
-
-    @property
-    def extra_state_attributes(self):
-        """Return attributes formatted for Plotly graphing."""
-        if not self.coordinator.data or self._home_id not in self.coordinator.data:
-            return {}
-        
-        today_prices = self.coordinator.data[self._home_id]["today"]
         tomorrow_prices = self.coordinator.data[self._home_id]["tomorrow"]
         
-        # Kombinera alla priser
-        all_prices = today_prices + tomorrow_prices
+        # Beräkna statistik för idag
+        today_price_values = [p["total"] for p in today_prices]
+        tomorrow_price_values = [p["total"] for p in tomorrow_prices]
         
-        # Separera data för Plotly
-        timestamps = []
-        prices = []
-        levels = []
-        colors = []
-        
-        # Färgmapping för prisnivåer
-        level_colors = {
-            "VERY_CHEAP": "#00ff00",    # Grön
-            "CHEAP": "#90EE90",          # Ljusgrön
-            "NORMAL": "#FFD700",         # Gul
-            "EXPENSIVE": "#FFA500",      # Orange
-            "VERY_EXPENSIVE": "#FF0000"  # Röd
-        }
-        
-        for price_point in all_prices:
-            timestamps.append(price_point["startsAt"])
-            prices.append(price_point["total"])
-            level = price_point.get("level", "NORMAL")
-            levels.append(level)
-            colors.append(level_colors.get(level, "#808080"))
-        
-        # Beräkna statistik
-        all_price_values = [p["total"] for p in all_prices]
+        # Hitta nuvarande pris och nivå
+        current_price = self.native_value
+        current_level = self._get_current_level()
         
         attrs = {
-            "prices": all_prices,
-            "timestamps": timestamps,
-            "price_values": prices,
-            "levels": levels,
-            "colors": colors,
+            "current_price": current_price,
+            "current_level": current_level,
             "resolution": self.coordinator.resolution,
-            "today_count": len(today_prices),
-            "tomorrow_count": len(tomorrow_prices),
+            "today": {
+                "prices": today_prices,
+                "count": len(today_prices),
+            },
+            "tomorrow": {
+                "prices": tomorrow_prices,
+                "count": len(tomorrow_prices),
+            },
         }
         
-        if all_price_values:
-            attrs.update({
-                "min_price": min(all_price_values),
-                "max_price": max(all_price_values),
-                "avg_price": round(sum(all_price_values) / len(all_price_values), 4),
-                "current_price": next(
-                    (p["total"] for p in today_prices 
-                     if dt_util.parse_datetime(p["startsAt"]) <= dt_util.now() < 
-                     dt_util.parse_datetime(p["startsAt"]) + timedelta(
-                         minutes=15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
-                     )),
-                    None
-                ),
+        # Statistik för idag
+        if today_price_values:
+            attrs["today"].update({
+                "min": min(today_price_values),
+                "max": max(today_price_values),
+                "avg": round(sum(today_price_values) / len(today_price_values), 4),
             })
         
-        return attrs
-
-
-class TibberTomorrowPricesSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for tomorrow's prices."""
-
-    def __init__(self, coordinator, home_id, home_name):
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._home_id = home_id
-        self._home_name = home_name
-        self._attr_name = f"{home_name} Tomorrow Prices"
-        self._attr_unique_id = f"{home_id}_tomorrow_prices"
-        self._attr_icon = "mdi:chart-line-variant"
-
-    @property
-    def native_value(self):
-        """Return number of price points."""
-        if not self.coordinator.data or self._home_id not in self.coordinator.data:
-            return 0
-        
-        return len(self.coordinator.data[self._home_id]["tomorrow"])
-
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        if not self.coordinator.data or self._home_id not in self.coordinator.data:
-            return {}
-        
-        tomorrow_prices = self.coordinator.data[self._home_id]["tomorrow"]
-        
-        # Beräkna extra statistik
-        prices_only = [p["total"] for p in tomorrow_prices]
-        
-        attrs = {
-            "prices": tomorrow_prices,
-            "resolution": self.coordinator.resolution,
-        }
-        
-        if prices_only:
-            attrs.update({
-                "min_price": min(prices_only),
-                "max_price": max(prices_only),
-                "avg_price": round(sum(prices_only) / len(prices_only), 4),
+        # Statistik för imorgon
+        if tomorrow_price_values:
+            attrs["tomorrow"].update({
+                "min": min(tomorrow_price_values),
+                "max": max(tomorrow_price_values),
+                "avg": round(sum(tomorrow_price_values) / len(tomorrow_price_values), 4),
             })
         
         return attrs

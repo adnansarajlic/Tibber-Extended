@@ -26,8 +26,9 @@
     "step": {
       "init": {
         "title": "Update Tibber Extended Settings",
-        "description": "Update your settings. Update times: {time_format}",
+        "description": "Update your settings. {token_info}\n\nUpdate times: {time_format}",
         "data": {
+          "access_token": "API Token (leave empty to keep current)",
           "home_name": "Home Name",
           "resolution": "Price Resolution",
           "update_times": "Update Times (HH:MM, comma separated)"
