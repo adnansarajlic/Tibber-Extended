@@ -26,8 +26,9 @@
     "step": {
       "init": {
         "title": "Uppdatera Tibber Extended-inställningar",
-        "description": "Uppdatera dina inställningar. Uppdateringstider: {time_format}",
+        "description": "Uppdatera dina inställningar. {token_info}\n\nUppdateringstider: {time_format}",
         "data": {
+          "access_token": "API Token (lämna tomt för att behålla nuvarande)",
           "home_name": "Hemnamn",
           "resolution": "Prisupplösning",
           "update_times": "Uppdateringstider (HH:MM, separerade med komma)"
