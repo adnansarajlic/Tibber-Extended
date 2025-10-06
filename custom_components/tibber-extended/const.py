@@ -19,3 +19,16 @@ RESOLUTION_OPTIONS = {
 }
 
 TIBBER_API_URL = "https://api.tibber.com/v1-beta/gql"
+
+# Test query for token validation
+TEST_QUERY = """
+{
+    viewer {
+        name
+        homes {
+            id
+            appNickname
+        }
+    }
+}
+"""
