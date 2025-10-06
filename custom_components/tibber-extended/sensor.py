@@ -50,6 +50,7 @@ async def async_setup_entry(
                 TibberCurrentLevelSensor(coordinator, home_id, home_name),
                 TibberTodayPricesSensor(coordinator, home_id, home_name),
                 TibberTomorrowPricesSensor(coordinator, home_id, home_name),
+                TibberCombinedPricesSensor(coordinator, home_id, home_name),  # NY: För Plotly
             ])
 
     async_add_entities(entities)
@@ -296,6 +297,94 @@ class TibberTodayPricesSensor(CoordinatorEntity, SensorEntity):
                 "min_price": min(prices_only),
                 "max_price": max(prices_only),
                 "avg_price": round(sum(prices_only) / len(prices_only), 4),
+            })
+        
+        return attrs
+
+
+class TibberCombinedPricesSensor(CoordinatorEntity, SensorEntity):
+    """Sensor for combined today and tomorrow prices - Perfect for Plotly graphs."""
+
+    def __init__(self, coordinator, home_id, home_name):
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self._home_id = home_id
+        self._home_name = home_name
+        self._attr_name = f"{home_name} Price Graph"
+        self._attr_unique_id = f"{home_id}_price_graph"
+        self._attr_icon = "mdi:chart-areaspline"
+
+    @property
+    def native_value(self):
+        """Return total number of price points."""
+        if not self.coordinator.data or self._home_id not in self.coordinator.data:
+            return 0
+        
+        today_count = len(self.coordinator.data[self._home_id]["today"])
+        tomorrow_count = len(self.coordinator.data[self._home_id]["tomorrow"])
+        return today_count + tomorrow_count
+
+    @property
+    def extra_state_attributes(self):
+        """Return attributes formatted for Plotly graphing."""
+        if not self.coordinator.data or self._home_id not in self.coordinator.data:
+            return {}
+        
+        today_prices = self.coordinator.data[self._home_id]["today"]
+        tomorrow_prices = self.coordinator.data[self._home_id]["tomorrow"]
+        
+        # Kombinera alla priser
+        all_prices = today_prices + tomorrow_prices
+        
+        # Separera data för Plotly
+        timestamps = []
+        prices = []
+        levels = []
+        colors = []
+        
+        # Färgmapping för prisnivåer
+        level_colors = {
+            "VERY_CHEAP": "#00ff00",    # Grön
+            "CHEAP": "#90EE90",          # Ljusgrön
+            "NORMAL": "#FFD700",         # Gul
+            "EXPENSIVE": "#FFA500",      # Orange
+            "VERY_EXPENSIVE": "#FF0000"  # Röd
+        }
+        
+        for price_point in all_prices:
+            timestamps.append(price_point["startsAt"])
+            prices.append(price_point["total"])
+            level = price_point.get("level", "NORMAL")
+            levels.append(level)
+            colors.append(level_colors.get(level, "#808080"))
+        
+        # Beräkna statistik
+        all_price_values = [p["total"] for p in all_prices]
+        
+        attrs = {
+            "prices": all_prices,
+            "timestamps": timestamps,
+            "price_values": prices,
+            "levels": levels,
+            "colors": colors,
+            "resolution": self.coordinator.resolution,
+            "today_count": len(today_prices),
+            "tomorrow_count": len(tomorrow_prices),
+        }
+        
+        if all_price_values:
+            attrs.update({
+                "min_price": min(all_price_values),
+                "max_price": max(all_price_values),
+                "avg_price": round(sum(all_price_values) / len(all_price_values), 4),
+                "current_price": next(
+                    (p["total"] for p in today_prices 
+                     if dt_util.parse_datetime(p["startsAt"]) <= dt_util.now() < 
+                     dt_util.parse_datetime(p["startsAt"]) + timedelta(
+                         minutes=15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
+                     )),
+                    None
+                ),
             })
         
         return attrs
