@@ -117,6 +117,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         """Fetch data from Tibber API."""
         _LOGGER.debug(f"Fetching data with resolution: {self.resolution}")
         
+        # Hämta ALLA fält från API:t
         query = """
         {
             viewer {
@@ -127,12 +128,18 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                         priceInfo(resolution: %s) {
                             today {
                                 total
+                                energy
+                                tax
                                 startsAt
+                                currency
                                 level
                             }
                             tomorrow {
                                 total
+                                energy
+                                tax
                                 startsAt
+                                currency
                                 level
                             }
                         }
@@ -277,9 +284,8 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         
         return self._home_id in self.coordinator.data
 
-    @property
-    def native_value(self):
-        """Return the current price."""
+    def _get_current_price_point(self):
+        """Get current price point data."""
         if not self.available:
             return None
         
@@ -296,7 +302,7 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
                 end_time = start_time + timedelta(minutes=interval)
                 
                 if start_time <= now < end_time:
-                    return round(price_point["total"], 4)
+                    return price_point
             except (KeyError, ValueError, TypeError) as err:
                 _LOGGER.error(f"Error parsing price point: {err}")
                 continue
@@ -304,49 +310,41 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         return None
 
     @property
+    def native_value(self):
+        """Return the current total price."""
+        price_point = self._get_current_price_point()
+        if price_point:
+            return round(price_point.get("total", 0), 4)
+        return None
+
+    @property
     def icon(self):
         """Return icon based on current price level."""
-        level = self._get_current_level()
-        if level == "VERY_CHEAP":
-            return "mdi:arrow-down-bold"
-        elif level == "CHEAP":
-            return "mdi:arrow-down"
-        elif level == "NORMAL":
-            return "mdi:minus"
-        elif level == "EXPENSIVE":
-            return "mdi:arrow-up"
-        elif level == "VERY_EXPENSIVE":
-            return "mdi:arrow-up-bold"
+        price_point = self._get_current_price_point()
+        if price_point:
+            level = price_point.get("level", "UNKNOWN")
+            if level == "VERY_CHEAP":
+                return "mdi:arrow-down-bold"
+            elif level == "CHEAP":
+                return "mdi:arrow-down"
+            elif level == "NORMAL":
+                return "mdi:minus"
+            elif level == "EXPENSIVE":
+                return "mdi:arrow-up"
+            elif level == "VERY_EXPENSIVE":
+                return "mdi:arrow-up-bold"
         return "mdi:flash"
-
-    def _get_current_level(self):
-        """Get current price level."""
-        if not self.available:
-            return "UNKNOWN"
-        
-        now = dt_util.now()
-        today_prices = self.coordinator.data[self._home_id]["today"]
-        
-        for price_point in today_prices:
-            try:
-                start_time = dt_util.parse_datetime(price_point["startsAt"])
-                interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
-                end_time = start_time + timedelta(minutes=interval)
-                
-                if start_time <= now < end_time:
-                    return price_point.get("level", "UNKNOWN")
-            except (KeyError, ValueError, TypeError):
-                continue
-        
-        return "UNKNOWN"
 
     @property
     def extra_state_attributes(self):
-        """Return the state attributes."""
+        """Return the state attributes with ALL fields from API."""
         if not self.available:
             return {
-                "current_price": None,
+                "current_total": None,
+                "current_energy": None,
+                "current_tax": None,
                 "current_level": "UNKNOWN",
+                "current_currency": None,
                 "resolution": self.coordinator.resolution,
                 "today": {"prices": [], "count": 0},
                 "tomorrow": {"prices": [], "count": 0},
@@ -355,41 +353,61 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         today_prices = self.coordinator.data[self._home_id]["today"]
         tomorrow_prices = self.coordinator.data[self._home_id]["tomorrow"]
         
-        # Beräkna statistik
-        today_price_values = [p["total"] for p in today_prices if "total" in p]
-        tomorrow_price_values = [p["total"] for p in tomorrow_prices if "total" in p]
+        # Hämta nuvarande prispoäng
+        current_price_point = self._get_current_price_point()
         
-        current_price = self.native_value
-        current_level = self._get_current_level()
+        # Beräkna statistik för alla fält
+        def calculate_stats(prices, field):
+            """Calculate min/max/avg for a specific field."""
+            values = [p.get(field, 0) for p in prices if field in p]
+            if values:
+                return {
+                    "min": round(min(values), 4),
+                    "max": round(max(values), 4),
+                    "avg": round(sum(values) / len(values), 4),
+                }
+            return {}
         
         attrs = {
-            "current_price": current_price,
-            "current_level": current_level,
             "resolution": self.coordinator.resolution,
             "today": {
                 "prices": today_prices,
                 "count": len(today_prices),
+                "total": calculate_stats(today_prices, "total"),
+                "energy": calculate_stats(today_prices, "energy"),
+                "tax": calculate_stats(today_prices, "tax"),
             },
             "tomorrow": {
                 "prices": tomorrow_prices,
                 "count": len(tomorrow_prices),
+                "total": calculate_stats(tomorrow_prices, "total"),
+                "energy": calculate_stats(tomorrow_prices, "energy"),
+                "tax": calculate_stats(tomorrow_prices, "tax"),
             },
         }
         
-        # Statistik för idag
-        if today_price_values:
-            attrs["today"].update({
-                "min": round(min(today_price_values), 4),
-                "max": round(max(today_price_values), 4),
-                "avg": round(sum(today_price_values) / len(today_price_values), 4),
+        # Lägg till nuvarande värden
+        if current_price_point:
+            attrs.update({
+                "current_total": round(current_price_point.get("total", 0), 4),
+                "current_energy": round(current_price_point.get("energy", 0), 4),
+                "current_tax": round(current_price_point.get("tax", 0), 4),
+                "current_level": current_price_point.get("level", "UNKNOWN"),
+                "current_currency": current_price_point.get("currency", "SEK"),
+                "current_starts_at": current_price_point.get("startsAt"),
+            })
+        else:
+            attrs.update({
+                "current_total": None,
+                "current_energy": None,
+                "current_tax": None,
+                "current_level": "UNKNOWN",
+                "current_currency": None,
+                "current_starts_at": None,
             })
         
-        # Statistik för imorgon
-        if tomorrow_price_values:
-            attrs["tomorrow"].update({
-                "min": round(min(tomorrow_price_values), 4),
-                "max": round(max(tomorrow_price_values), 4),
-                "avg": round(sum(tomorrow_price_values) / len(tomorrow_price_values), 4),
-            })
+        # Lägg till currency från första prispoängen om tillgänglig
+        if today_prices and "currency" in today_prices[0]:
+            attrs["currency"] = today_prices[0]["currency"]
         
         return attrs
