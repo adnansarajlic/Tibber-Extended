@@ -274,3 +274,4 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
             _LOGGER.error("Error validating token: %s", err)
         
         return False
+    
