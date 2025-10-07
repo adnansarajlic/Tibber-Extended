@@ -14,9 +14,12 @@ from .const import (
     CONF_RESOLUTION,
     CONF_UPDATE_TIMES,
     CONF_HOME_NAME,
+    CONF_CURRENCY,
     DEFAULT_DEMO_TOKEN,
     DEFAULT_UPDATE_TIMES,
+    DEFAULT_CURRENCY,
     RESOLUTION_OPTIONS,
+    CURRENCY_OPTIONS,
     TIBBER_API_URL,
 )
 
@@ -90,6 +93,10 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_RESOLUTION, 
                     default="QUARTER_HOURLY"
                 ): vol.In(RESOLUTION_OPTIONS),
+                vol.Optional(
+                    CONF_CURRENCY,
+                    default=DEFAULT_CURRENCY
+                ): vol.In(CURRENCY_OPTIONS),
                 vol.Optional(
                     CONF_UPDATE_TIMES,
                     default=default_times
@@ -214,6 +221,10 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     CONF_RESOLUTION,
                     default=self._config_entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY"),
                 ): vol.In(RESOLUTION_OPTIONS),
+                vol.Optional(
+                    CONF_CURRENCY,
+                    default=self._config_entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY),
+                ): vol.In(CURRENCY_OPTIONS),
                 vol.Optional(
                     CONF_UPDATE_TIMES,
                     default=current_times_str,
