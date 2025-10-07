@@ -22,7 +22,9 @@ from .const import (
     CONF_RESOLUTION,
     CONF_UPDATE_TIMES,
     CONF_HOME_NAME,
+    CONF_CURRENCY,
     DEFAULT_UPDATE_TIMES,
+    DEFAULT_CURRENCY,
     TIBBER_API_URL,
 )
 
@@ -42,20 +44,19 @@ async def async_setup_entry(
         await coordinator.async_config_entry_first_refresh()
     except Exception as err:
         _LOGGER.error("Failed to fetch initial data: %s", err)
-        # Fortsätt ändå, sensorer kommer uppdateras senare
     
     home_name = entry.data.get(CONF_HOME_NAME, "Mitt Hem")
+    currency = entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
     entities = []
     
     # Skapa sensor även om ingen data finns än
     if coordinator.data:
         for home_id, home_data in coordinator.data.items():
             _LOGGER.info(f"Creating sensor for home: {home_id}")
-            entities.append(TibberPriceSensor(coordinator, home_id, home_name))
+            entities.append(TibberPriceSensor(coordinator, home_id, home_name, currency))
     else:
-        # Skapa en sensor med dummy home_id som kommer uppdateras senare
         _LOGGER.warning("No data available yet, creating sensor anyway")
-        entities.append(TibberPriceSensor(coordinator, "pending", home_name))
+        entities.append(TibberPriceSensor(coordinator, "pending", home_name, currency))
 
     async_add_entities(entities, True)
     _LOGGER.info(f"Added {len(entities)} Tibber sensors")
@@ -93,7 +94,6 @@ class TibberDataCoordinator(DataUpdateCoordinator):
             update_interval=None,
         )
         
-        # Sätt upp time-baserade triggers för data-hämtning
         self._setup_time_triggers()
 
     def _setup_time_triggers(self):
@@ -117,7 +117,6 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         """Fetch data from Tibber API."""
         _LOGGER.debug(f"Fetching data with resolution: {self.resolution}")
         
-        # Hämta ALLA fält från API:t
         query = """
         {
             viewer {
@@ -131,7 +130,6 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                                 energy
                                 tax
                                 startsAt
-                                currency
                                 level
                             }
                             tomorrow {
@@ -139,7 +137,6 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                                 energy
                                 tax
                                 startsAt
-                                currency
                                 level
                             }
                         }
@@ -172,7 +169,6 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                         _LOGGER.error(f"GraphQL error: {error_msg}")
                         raise UpdateFailed(f"GraphQL error: {error_msg}")
                     
-                    # Parse the data
                     homes_data = {}
                     viewer_data = data.get("data", {}).get("viewer", {})
                     homes = viewer_data.get("homes", [])
@@ -222,14 +218,15 @@ class TibberDataCoordinator(DataUpdateCoordinator):
 class TibberPriceSensor(CoordinatorEntity, SensorEntity):
     """Unified sensor for Tibber electricity prices."""
 
-    def __init__(self, coordinator, home_id, home_name):
+    def __init__(self, coordinator, home_id, home_name, currency):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._home_id = home_id
         self._home_name = home_name
+        self._currency = currency
         self._attr_name = f"{home_name} Electricity Price"
         self._attr_unique_id = f"{home_id}_electricity_price"
-        self._attr_native_unit_of_measurement = "kr/kWh"
+        self._attr_native_unit_of_measurement = f"{currency}/kWh"
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:flash"
         self._attr_available = False
@@ -241,7 +238,6 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         """When entity is added to hass."""
         await super().async_added_to_hass()
         
-        # Sätt upp automatisk uppdatering av sensor-state EFTER att sensorn lagts till
         self._update_interval_remover = async_track_time_interval(
             self.hass,
             self._update_state,
@@ -256,7 +252,6 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         """When entity will be removed from hass."""
         await super().async_will_remove_from_hass()
         
-        # Ta bort time tracker
         if self._update_interval_remover:
             self._update_interval_remover()
             self._update_interval_remover = None
@@ -275,7 +270,6 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         if not self.coordinator.data:
             return False
         
-        # Om vi använder "pending" home_id, uppdatera till rätt ID när data finns
         if self._home_id == "pending" and self.coordinator.data:
             first_home_id = list(self.coordinator.data.keys())[0]
             self._home_id = first_home_id
@@ -337,14 +331,15 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        """Return the state attributes with ALL fields from API."""
+        """Return the state attributes."""
         if not self.available:
             return {
                 "current_total": None,
                 "current_energy": None,
                 "current_tax": None,
                 "current_level": "UNKNOWN",
-                "current_currency": None,
+                "current_starts_at": None,
+                "currency": self._currency,
                 "resolution": self.coordinator.resolution,
                 "today": {"prices": [], "count": 0},
                 "tomorrow": {"prices": [], "count": 0},
@@ -353,10 +348,8 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         today_prices = self.coordinator.data[self._home_id]["today"]
         tomorrow_prices = self.coordinator.data[self._home_id]["tomorrow"]
         
-        # Hämta nuvarande prispoäng
         current_price_point = self._get_current_price_point()
         
-        # Beräkna statistik för alla fält
         def calculate_stats(prices, field):
             """Calculate min/max/avg for a specific field."""
             values = [p.get(field, 0) for p in prices if field in p]
@@ -369,31 +362,28 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
             return {}
         
         attrs = {
+            "currency": self._currency,
             "resolution": self.coordinator.resolution,
             "today": {
                 "prices": today_prices,
                 "count": len(today_prices),
                 "total": calculate_stats(today_prices, "total"),
                 "energy": calculate_stats(today_prices, "energy"),
-                "tax": calculate_stats(today_prices, "tax"),
             },
             "tomorrow": {
                 "prices": tomorrow_prices,
                 "count": len(tomorrow_prices),
                 "total": calculate_stats(tomorrow_prices, "total"),
                 "energy": calculate_stats(tomorrow_prices, "energy"),
-                "tax": calculate_stats(tomorrow_prices, "tax"),
             },
         }
         
-        # Lägg till nuvarande värden
         if current_price_point:
             attrs.update({
                 "current_total": round(current_price_point.get("total", 0), 4),
                 "current_energy": round(current_price_point.get("energy", 0), 4),
                 "current_tax": round(current_price_point.get("tax", 0), 4),
                 "current_level": current_price_point.get("level", "UNKNOWN"),
-                "current_currency": current_price_point.get("currency", "SEK"),
                 "current_starts_at": current_price_point.get("startsAt"),
             })
         else:
@@ -402,12 +392,7 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
                 "current_energy": None,
                 "current_tax": None,
                 "current_level": "UNKNOWN",
-                "current_currency": None,
                 "current_starts_at": None,
             })
-        
-        # Lägg till currency från första prispoängen om tillgänglig
-        if today_prices and "currency" in today_prices[0]:
-            attrs["currency"] = today_prices[0]["currency"]
         
         return attrs
