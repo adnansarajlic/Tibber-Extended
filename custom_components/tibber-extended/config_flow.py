@@ -152,7 +152,7 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry):
         """Initialize options flow."""
-        super().__init__(config_entry)
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None) -> FlowResult:
         """Manage the options."""
@@ -162,7 +162,7 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
             # Validera token om angiven
             token = user_input.get(CONF_ACCESS_TOKEN, "").strip()
             if not token:
-                token = self.config_entry.data.get(CONF_ACCESS_TOKEN, DEFAULT_DEMO_TOKEN)
+                token = self._config_entry.data.get(CONF_ACCESS_TOKEN, DEFAULT_DEMO_TOKEN)
             
             # Validera update_times format
             update_times_str = user_input.get(CONF_UPDATE_TIMES, "")
@@ -185,8 +185,8 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     
                     # Uppdatera config entry data
                     self.hass.config_entries.async_update_entry(
-                        self.config_entry,
-                        data={**self.config_entry.data, **user_input}
+                        self._config_entry,
+                        data={**self._config_entry.data, **user_input}
                     )
                     
                     return self.async_create_entry(title="", data={})
@@ -194,7 +194,7 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     errors["base"] = "invalid_token"
 
         # Hämta nuvarande värden
-        current_times = self.config_entry.data.get(CONF_UPDATE_TIMES, DEFAULT_UPDATE_TIMES)
+        current_times = self._config_entry.data.get(CONF_UPDATE_TIMES, DEFAULT_UPDATE_TIMES)
         if isinstance(current_times, list):
             current_times_str = ", ".join(current_times)
         else:
@@ -208,11 +208,11 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                 ): str,
                 vol.Optional(
                     CONF_HOME_NAME,
-                    default=self.config_entry.data.get(CONF_HOME_NAME, "Mitt Hem"),
+                    default=self._config_entry.data.get(CONF_HOME_NAME, "Mitt Hem"),
                 ): str,
                 vol.Optional(
                     CONF_RESOLUTION,
-                    default=self.config_entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY"),
+                    default=self._config_entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY"),
                 ): vol.In(RESOLUTION_OPTIONS),
                 vol.Optional(
                     CONF_UPDATE_TIMES,
