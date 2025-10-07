@@ -226,15 +226,16 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:flash"
         self._attr_available = False
+        self._update_interval_remover = None
         
         _LOGGER.info(f"Initialized sensor: {self._attr_name} (ID: {self._attr_unique_id})")
-        
-        # Sätt upp automatisk uppdatering av sensor-state
-        self._setup_state_updates()
 
-    def _setup_state_updates(self):
-        """Setup automatic state updates based on resolution."""
-        async_track_time_interval(
+    async def async_added_to_hass(self):
+        """When entity is added to hass."""
+        await super().async_added_to_hass()
+        
+        # Sätt upp automatisk uppdatering av sensor-state EFTER att sensorn lagts till
+        self._update_interval_remover = async_track_time_interval(
             self.hass,
             self._update_state,
             self.coordinator.sensor_update_interval
@@ -243,6 +244,15 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
             f"State updates every {self.coordinator.sensor_update_interval} "
             f"for {self._attr_name}"
         )
+
+    async def async_will_remove_from_hass(self):
+        """When entity will be removed from hass."""
+        await super().async_will_remove_from_hass()
+        
+        # Ta bort time tracker
+        if self._update_interval_remover:
+            self._update_interval_remover()
+            self._update_interval_remover = None
 
     async def _update_state(self, now=None):
         """Force sensor state update."""
@@ -262,6 +272,7 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         if self._home_id == "pending" and self.coordinator.data:
             first_home_id = list(self.coordinator.data.keys())[0]
             self._home_id = first_home_id
+            self._attr_unique_id = f"{first_home_id}_electricity_price"
             _LOGGER.info(f"Updated home_id from pending to {first_home_id}")
         
         return self._home_id in self.coordinator.data
