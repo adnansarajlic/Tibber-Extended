@@ -237,16 +237,25 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         await super().async_added_to_hass()
-        
-        self._update_interval_remover = async_track_time_interval(
-            self.hass,
-            self._update_state,
-            self.coordinator.sensor_update_interval
-        )
-        _LOGGER.debug(
-            f"State updates every {self.coordinator.sensor_update_interval} "
-            f"for {self._attr_name}"
-        )
+        self._setup_sensor_updates()
+
+    def _setup_sensor_updates(self):
+        """Set up scheduled updates for the sensor."""
+        if self._update_interval_remover:
+            self._update_interval_remover()
+
+        if self.coordinator.resolution == "QUARTER_HOURLY":
+            # Update every 15 minutes, at :00, :15, :30, :45
+            self._update_interval_remover = async_track_time_change(
+                self.hass, self._update_state, minute=[0, 15, 30, 45], second=0
+            )
+            _LOGGER.debug(f"Scheduled state updates on the quarter hour for {self._attr_name}")
+        else:  # HOURLY
+            # Update every hour, at :00
+            self._update_interval_remover = async_track_time_change(
+                self.hass, self._update_state, minute=0, second=0
+            )
+            _LOGGER.debug(f"Scheduled state updates on the hour for {self._attr_name}")
 
     async def async_will_remove_from_hass(self):
         """When entity will be removed from hass."""
