@@ -134,6 +134,7 @@ Integrationen skapar EN sensor per hem:
     "energy": {...}
   }
 }
+```
 
 ## 🤖 Automatiseringsexempel
 
@@ -160,6 +161,7 @@ actions:
       message: >
         Nu är elpriset {{ states('sensor.mitt_hem_electricity_price') }}
         kr/kWh.  Perfekt tid att starta tvättmaskin eller diskmaskin!
+```
 
 ### Hitta billigaste 3-timmarsperioden idag
 
@@ -367,5 +369,6 @@ MIT License - Se [LICENSE](LICENSE) för detaljer
 ---
 
 **⚠️ Viktigt:** Denna integration är inte officiellt supporterad av Tibber. Demo-token tillhandahålls för testning men kan sluta fungera.
+
 
 **🔒 Säkerhet:** Din API-token lagras säkert i Home Assistant's krypterade storage.
