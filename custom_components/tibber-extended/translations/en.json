@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Tibber Extended",
+        "description": "Enter your Tibber Extended settings. {demo_token_info}\n\nUpdate times: {time_format}",
+        "data": {
+          "access_token": "API Token (leave empty for demo token)",
+          "home_name": "Home Name",
+          "resolution": "Price Resolution",
+          "currency": "Currency",
+          "update_times": "Update Times (HH:MM, comma separated)"
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Invalid API token. Please check your token and try again.",
+      "invalid_time_format": "Invalid time format. Use HH:MM (e.g. 13:00, 15:00)",
+      "cannot_connect": "Failed to connect to Tibber API",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This integration is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update Tibber Extended Settings",
+        "description": "Update your settings. {token_info}\n\nUpdate times: {time_format}",
+        "data": {
+          "access_token": "API Token (leave empty to keep current)",
+          "home_name": "Home Name",
+          "resolution": "Price Resolution",
+          "currency": "Currency",
+          "update_times": "Update Times (HH:MM, comma separated)"
+        }
+      }
+    }
+  }
+}
