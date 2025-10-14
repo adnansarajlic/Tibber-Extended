@@ -4,7 +4,7 @@
   <img src="https://github.com/adnansarajlic/tibber-extended/raw/main/logo.png" alt="Tibber Extended Logo" width="200"/>
 </p>
 
-En kraftfull custom integration som hämtar elpriser och prisnivåer från Tibber's API med avancerade funktioner.
+En integration som hämtar elpriser och prisnivåer från Tibber's API med avancerade funktioner.
 
 ## ✨ Funktioner
 
@@ -342,6 +342,36 @@ series:
     show:
       in_chart: false
     float_precision: 2
+```
+
+### Visa priser i Mini Graph Card
+![Mini Graph Card](image-1.png)
+```
+type: custom:mini-graph-card
+entities:
+  - entity: sensor.mitt-hem_electricity_price
+    name: Elpris idag/imorgon
+    show_state: true
+hours_to_show: 48
+points_per_hour: 4
+line_width: 2
+font_size: 75
+animate: true
+color_thresholds:
+  - value: 0
+    color: '#03c03c'
+  - value: 1.0
+    color: '#1982C4'
+  - value: 1.4
+    color: '#B13A33'
+show:
+  labels: true
+  labels_secondary: false
+  points: hover
+  legend: true
+  icon: true
+  name: true
+  state: true
 ```
 
 ## 🤝 Bidra
