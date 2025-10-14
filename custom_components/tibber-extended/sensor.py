@@ -110,15 +110,15 @@ class TibberDataCoordinator(DataUpdateCoordinator):
             )
             _LOGGER.info(f"Scheduled data fetch at {update_time.hour:02d}:{update_time.minute:02d}")
         
-        # Flytta tomorrow → today vid midnatt (UTAN API-anrop)
+        # Flytta tomorrow → today 5 sekunder före midnatt (UTAN API-anrop)
         async_track_time_change(
             self.hass,
             self._handle_midnight_shift,
-            hour=0,
-            minute=0,
-            second=5,  # 5 sekunder efter midnatt
+            hour=23,
+            minute=59,
+            second=55,  # 5 sekunder före midnatt
         )
-        _LOGGER.info("Scheduled price shift at midnight (00:00:05)")
+        _LOGGER.info("Scheduled price shift 5 seconds before midnight (23:59:55)")
 
     async def _handle_time_trigger(self, now):
         """Handle time-based update trigger."""
@@ -283,31 +283,40 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:flash"
         self._attr_available = False
-        self._update_interval_remover = None
+        self._update_listeners = []
         
         _LOGGER.info(f"Initialized sensor: {self._attr_name} (ID: {self._attr_unique_id})")
 
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         await super().async_added_to_hass()
-        
-        self._update_interval_remover = async_track_time_interval(
-            self.hass,
-            self._update_state,
-            self.coordinator.sensor_update_interval
-        )
-        _LOGGER.debug(
-            f"State updates every {self.coordinator.sensor_update_interval} "
-            f"for {self._attr_name}"
-        )
+
+        # Schedule updates to align with the clock
+        if self.coordinator.resolution == "QUARTER_HOURLY":
+            minutes = [0, 15, 30, 45]
+            _LOGGER.debug(
+                f"Scheduling state updates at minutes {minutes} for {self._attr_name}"
+            )
+        else:  # HOURLY
+            minutes = [0]
+            _LOGGER.debug(
+                f"Scheduling state updates at minute 0 for {self._attr_name}"
+            )
+
+        for minute in minutes:
+            self._update_listeners.append(
+                async_track_time_change(
+                    self.hass, self._update_state, minute=minute, second=1
+                )
+            )
 
     async def async_will_remove_from_hass(self):
         """When entity will be removed from hass."""
         await super().async_will_remove_from_hass()
         
-        if self._update_interval_remover:
-            self._update_interval_remover()
-            self._update_interval_remover = None
+        for remover in self._update_listeners:
+            remover()
+        self._update_listeners = []
 
     async def _update_state(self, now=None):
         """Force sensor state update."""
