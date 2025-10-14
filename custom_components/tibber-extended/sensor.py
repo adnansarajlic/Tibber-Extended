@@ -71,6 +71,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         self.resolution = entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY")
         self.update_times = entry.data.get(CONF_UPDATE_TIMES, DEFAULT_UPDATE_TIMES)
         self.entry = entry
+        self._last_midnight_shift = None  # Håll koll på när vi senast flyttade data
         
         # Konvertera update_times till time-objekt
         self.update_times_parsed = []
@@ -98,6 +99,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
 
     def _setup_time_triggers(self):
         """Setup time-based update triggers."""
+        # Ordinarie uppdateringstider
         for update_time in self.update_times_parsed:
             async_track_time_change(
                 self.hass,
@@ -107,11 +109,62 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                 second=0,
             )
             _LOGGER.info(f"Scheduled data fetch at {update_time.hour:02d}:{update_time.minute:02d}")
+        
+        # Flytta tomorrow → today vid midnatt (UTAN API-anrop)
+        async_track_time_change(
+            self.hass,
+            self._handle_midnight_shift,
+            hour=0,
+            minute=0,
+            second=5,  # 5 sekunder efter midnatt
+        )
+        _LOGGER.info("Scheduled price shift at midnight (00:00:05)")
 
     async def _handle_time_trigger(self, now):
         """Handle time-based update trigger."""
         _LOGGER.info(f"Time trigger fired at {now}, fetching Tibber data")
         await self.async_request_refresh()
+
+    async def _handle_midnight_shift(self, now):
+        """Shift tomorrow prices to today at midnight."""
+        current_date = now.date()
+        
+        # Kontrollera så vi inte kör flera gånger samma natt
+        if self._last_midnight_shift == current_date:
+            _LOGGER.debug("Midnight shift already performed today")
+            return
+        
+        _LOGGER.info(f"Midnight shift triggered at {now}")
+        
+        if not self.data:
+            _LOGGER.warning("No data to shift at midnight")
+            return
+        
+        # Flytta tomorrow → today för alla hem
+        for home_id in self.data.keys():
+            tomorrow_prices = self.data[home_id].get("tomorrow", [])
+            
+            if tomorrow_prices:
+                _LOGGER.info(
+                    f"Shifting {len(tomorrow_prices)} prices from tomorrow to today "
+                    f"for home {home_id}"
+                )
+                
+                # Flytta morgondagens priser till idag
+                self.data[home_id]["today"] = tomorrow_prices
+                # Töm morgondagens priser
+                self.data[home_id]["tomorrow"] = []
+            else:
+                _LOGGER.warning(
+                    f"No tomorrow prices available to shift for home {home_id}"
+                )
+        
+        # Markera att vi gjort shiften
+        self._last_midnight_shift = current_date
+        
+        # Trigga uppdatering av alla sensorer
+        self.async_set_updated_data(self.data)
+        _LOGGER.info("Midnight shift completed, sensors updated")
 
     async def _async_update_data(self):
         """Fetch data from Tibber API."""
@@ -237,25 +290,16 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
     async def async_added_to_hass(self):
         """When entity is added to hass."""
         await super().async_added_to_hass()
-        self._setup_sensor_updates()
-
-    def _setup_sensor_updates(self):
-        """Set up scheduled updates for the sensor."""
-        if self._update_interval_remover:
-            self._update_interval_remover()
-
-        if self.coordinator.resolution == "QUARTER_HOURLY":
-            # Update every 15 minutes, at :00, :15, :30, :45
-            self._update_interval_remover = async_track_time_change(
-                self.hass, self._update_state, minute=[0, 15, 30, 45], second=0
-            )
-            _LOGGER.debug(f"Scheduled state updates on the quarter hour for {self._attr_name}")
-        else:  # HOURLY
-            # Update every hour, at :00
-            self._update_interval_remover = async_track_time_change(
-                self.hass, self._update_state, minute=0, second=0
-            )
-            _LOGGER.debug(f"Scheduled state updates on the hour for {self._attr_name}")
+        
+        self._update_interval_remover = async_track_time_interval(
+            self.hass,
+            self._update_state,
+            self.coordinator.sensor_update_interval
+        )
+        _LOGGER.debug(
+            f"State updates every {self.coordinator.sensor_update_interval} "
+            f"for {self._attr_name}"
+        )
 
     async def async_will_remove_from_hass(self):
         """When entity will be removed from hass."""
@@ -295,12 +339,16 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         now = dt_util.now()
         today_prices = self.coordinator.data[self._home_id]["today"]
         
+        # Ingen kombinering behövs - today har alltid rätt data tack vare midnight shift!
         if not today_prices:
             return None
         
         for price_point in today_prices:
             try:
                 start_time = dt_util.parse_datetime(price_point["startsAt"])
+                if not start_time:
+                    continue
+                    
                 interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
                 end_time = start_time + timedelta(minutes=interval)
                 
