@@ -137,7 +137,7 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     TIBBER_API_URL,
                     json={"query": query},
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=10),
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -265,7 +265,7 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     TIBBER_API_URL,
                     json={"query": query},
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=10),
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
                     if response.status == 200:
                         data = await response.json()

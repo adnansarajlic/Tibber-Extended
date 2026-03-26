@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta, time
 import aiohttp
 import asyncio
+import time as time_mod
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
@@ -38,6 +39,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up Tibber Extended sensors."""
     coordinator = TibberDataCoordinator(hass, entry)
+    
+    # Spara koordinator så button.py kan hitta den
+    hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
     
     # Försök hämta data första gången
     try:
@@ -170,6 +174,19 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         """Fetch data from Tibber API."""
         _LOGGER.debug(f"Fetching data with resolution: {self.resolution}")
         
+        # Bara hämta morgondagens priser efter kl 12:45 för att undvika 504 Timeout på stora förfrågningar
+        now_time = dt_util.now().time()
+        fetch_tomorrow = now_time >= time(12, 45)
+        
+        tomorrow_query = """
+                            tomorrow {
+                                total
+                                energy
+                                tax
+                                startsAt
+                                level
+                            }""" if fetch_tomorrow else ""
+
         query = """
         {
             viewer {
@@ -184,88 +201,109 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                                 tax
                                 startsAt
                                 level
-                            }
-                            tomorrow {
-                                total
-                                energy
-                                tax
-                                startsAt
-                                level
-                            }
+                            }%s
                         }
                     }
                 }
             }
         }
-        """ % self.resolution
+        """ % (self.resolution, tomorrow_query)
 
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
         }
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    TIBBER_API_URL,
-                    json={"query": query},
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30),
-                ) as response:
-                    if response.status != 200:
-                        raise UpdateFailed(f"API error: {response.status}")
-                    
-                    data = await response.json()
-                    
-                    if "errors" in data:
-                        error_msg = data['errors'][0].get('message', 'Unknown error')
-                        _LOGGER.error(f"GraphQL error: {error_msg}")
-                        raise UpdateFailed(f"GraphQL error: {error_msg}")
-                    
-                    homes_data = {}
-                    viewer_data = data.get("data", {}).get("viewer", {})
-                    homes = viewer_data.get("homes", [])
-                    
-                    if not homes:
-                        _LOGGER.warning("No homes found in Tibber account")
-                        return homes_data
-                    
-                    for home in homes:
-                        home_id = home["id"]
-                        subscription = home.get("currentSubscription")
+        max_retries = 2
+        request_start_time = time_mod.time()
+        
+        for attempt in range(max_retries):
+            try:
+                _LOGGER.debug(f"Starting API request (Attempt {attempt + 1}/{max_retries})")
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        TIBBER_API_URL,
+                        json={"query": query},
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=45),
+                    ) as response:
+                        if response.status != 200:
+                            if response.status == 504 and attempt < max_retries - 1:
+                                _LOGGER.warning(f"504 Gateway Timeout from Tibber API (Attempt {attempt + 1}/{max_retries}), retrying...")
+                                await asyncio.sleep(2)
+                                continue
+                            raise UpdateFailed(f"API error: {response.status} (Attempt {attempt + 1})")
                         
-                        if not subscription:
-                            _LOGGER.warning(f"No subscription found for home {home_id}")
-                            continue
+                        elapsed = round(time_mod.time() - request_start_time, 2)
+                        _LOGGER.debug(f"API response received in {elapsed}s")
                         
-                        price_info = subscription.get("priceInfo", {})
+                        data = await response.json()
                         
-                        homes_data[home_id] = {
-                            "name": home.get("appNickname", "Home"),
-                            "today": price_info.get("today", []),
-                            "tomorrow": price_info.get("tomorrow", []),
-                        }
+                        if "errors" in data:
+                            error_msg = data['errors'][0].get('message', 'Unknown error')
+                            _LOGGER.error(f"GraphQL error: {error_msg}")
+                            raise UpdateFailed(f"GraphQL error: {error_msg}")
                         
-                        _LOGGER.debug(
-                            f"Home {home_id}: {len(homes_data[home_id]['today'])} today prices, "
-                            f"{len(homes_data[home_id]['tomorrow'])} tomorrow prices"
+                        homes_data = {}
+                        viewer_data = data.get("data", {}).get("viewer", {})
+                        homes = viewer_data.get("homes", [])
+                        
+                        if not homes:
+                            _LOGGER.warning("No homes found in Tibber account")
+                            return homes_data
+                        
+                        for home in homes:
+                            home_id = home["id"]
+                            subscription = home.get("currentSubscription")
+                            
+                            if not subscription:
+                                _LOGGER.warning(f"No subscription found for home {home_id}")
+                                continue
+                            
+                            price_info = subscription.get("priceInfo", {})
+                            
+                            # Hämta befintlig tomorrow data om vi har någon och inte hämtar ny
+                            existing_tomorrow = []
+                            if self.data and home_id in self.data:
+                                existing_tomorrow = self.data[home_id].get("tomorrow", [])
+                                
+                            homes_data[home_id] = {
+                                "name": home.get("appNickname", "Home"),
+                                "today": price_info.get("today", []),
+                                "tomorrow": price_info.get("tomorrow", existing_tomorrow),
+                            }
+                            
+                            _LOGGER.debug(
+                                f"Home {home_id}: {len(homes_data[home_id]['today'])} today prices, "
+                                f"{len(homes_data[home_id]['tomorrow'])} tomorrow prices"
+                            )
+                        
+                        _LOGGER.info(
+                            f"Successfully fetched data for {len(homes_data)} home(s) "
+                            f"in {elapsed}s (Tomorrow fetched: {fetch_tomorrow})"
                         )
-                    
-                    _LOGGER.info(f"Successfully fetched data for {len(homes_data)} home(s)")
-                    return homes_data
+                        return homes_data
 
-        except asyncio.TimeoutError as err:
-            _LOGGER.error(f"Timeout fetching data: {err}")
-            raise UpdateFailed(f"Timeout fetching data: {err}")
-        except aiohttp.ClientError as err:
-            _LOGGER.error(f"Network error: {err}")
-            raise UpdateFailed(f"Error fetching data: {err}")
-        except KeyError as err:
-            _LOGGER.error(f"Unexpected API response structure: {err}")
-            raise UpdateFailed(f"Invalid API response: {err}")
-        except Exception as err:
-            _LOGGER.error(f"Unexpected error: {err}")
-            raise UpdateFailed(f"Unexpected error: {err}")
+            except asyncio.TimeoutError as err:
+                if attempt < max_retries - 1:
+                    _LOGGER.warning("Timeout from Tibber API, retrying...")
+                    await asyncio.sleep(2)
+                    continue
+                _LOGGER.error(f"Timeout fetching data: {err}")
+                raise UpdateFailed(f"Timeout fetching data: {err}")
+            except aiohttp.ClientError as err:
+                if attempt < max_retries - 1:
+                    _LOGGER.warning("Network error, retrying...")
+                    await asyncio.sleep(2)
+                    continue
+                _LOGGER.error(f"Network error: {err}")
+                raise UpdateFailed(f"Error fetching data: {err}")
+            except KeyError as err:
+                _LOGGER.error(f"Unexpected API response structure: {err}")
+                raise UpdateFailed(f"Invalid API response: {err}")
+            except Exception as err:
+                _LOGGER.error(f"Unexpected error: {err}")
+                raise UpdateFailed(f"Unexpected error: {err}")
 
 
 class TibberPriceSensor(CoordinatorEntity, SensorEntity):

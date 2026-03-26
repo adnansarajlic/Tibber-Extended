@@ -9,6 +9,8 @@ En integration som hämtar elpriser och prisnivåer från Tibber's API med avanc
 ## ✨ Funktioner
 
 - 🔄 Automatisk hämtning av dagens och morgondagens elpriser
+- 🔘 **Nyhet:** Manuell "Refresh"-knapp för att när som helst tvinga fram prisuppdateringar
+- 🛡️ Inbyggd retry-logik och optimerade API-anrop för att förhindra Timeout-fel
 - 📊 Prisnivåer (VERY_CHEAP, CHEAP, NORMAL, EXPENSIVE, VERY_EXPENSIVE) direkt från Tibber
 - ⏰ Flera konfigurerbara uppdateringstider (t.ex. kl 13:00 och 15:00)
 - 🕐 Stöd för QUARTER_HOURLY (15 min) eller HOURLY (60 min) upplösning

@@ -1,0 +1,45 @@
+"""Button platform for Tibber Extended."""
+import logging
+
+from homeassistant.components.button import ButtonEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN, CONF_HOME_NAME
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up Tibber Extended button."""
+    try:
+        coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    except KeyError:
+        _LOGGER.error("Coordinator inte hittad, kan inte ladda knappen")
+        return
+
+    home_name = entry.data.get(CONF_HOME_NAME, "Mitt Hem")
+    
+    async_add_entities([TibberRefreshButton(coordinator, home_name)], True)
+    _LOGGER.info("Successfully setup Tibber refresh button")
+
+
+class TibberRefreshButton(ButtonEntity):
+    """Button to trigger manual refresh of Tibber prices."""
+
+    def __init__(self, coordinator, home_name):
+        """Initialize the button."""
+        self.coordinator = coordinator
+        self._attr_name = f"{home_name} Update Prices"
+        self._attr_unique_id = f"tibber_extended_refresh_{coordinator.entry.entry_id}"
+        self._attr_icon = "mdi:refresh"
+
+    async def async_press(self) -> None:
+        """Handle the button press."""
+        _LOGGER.info("Manuell uppdatering av elpriser via Refresh-knapp begärd")
+        await self.coordinator.async_request_refresh()
