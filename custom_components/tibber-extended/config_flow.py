@@ -109,12 +109,12 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ): str,
                 vol.Optional(
                     CONF_BEST_PRICE_TARGET_HOURS,
-                    default=DEFAULT_BEST_PRICE_TARGET_HOURS,
-                ): vol.All(vol.Coerce(float), vol.In([0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0])),
+                    default=str(DEFAULT_BEST_PRICE_TARGET_HOURS),
+                ): vol.In(["0.5", "1.0", "1.5", "2.0", "3.0", "4.0", "6.0"]),
                 vol.Optional(
                     CONF_PEAK_PRICE_TARGET_HOURS,
-                    default=DEFAULT_PEAK_PRICE_TARGET_HOURS,
-                ): vol.All(vol.Coerce(float), vol.In([0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0])),
+                    default=str(DEFAULT_PEAK_PRICE_TARGET_HOURS),
+                ): vol.In(["0.5", "1.0", "1.5", "2.0", "3.0", "4.0", "6.0"]),
                 vol.Optional(
                     CONF_USE_SUBUNITS,
                     default=DEFAULT_USE_SUBUNITS,
@@ -249,12 +249,12 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                 ): str,
                 vol.Optional(
                     CONF_BEST_PRICE_TARGET_HOURS,
-                    default=self._config_entry.data.get(CONF_BEST_PRICE_TARGET_HOURS, DEFAULT_BEST_PRICE_TARGET_HOURS),
-                ): vol.All(vol.Coerce(float), vol.In([0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0])),
+                    default=str(self._config_entry.data.get(CONF_BEST_PRICE_TARGET_HOURS, DEFAULT_BEST_PRICE_TARGET_HOURS)),
+                ): vol.In(["0.5", "1.0", "1.5", "2.0", "3.0", "4.0", "6.0"]),
                 vol.Optional(
                     CONF_PEAK_PRICE_TARGET_HOURS,
-                    default=self._config_entry.data.get(CONF_PEAK_PRICE_TARGET_HOURS, DEFAULT_PEAK_PRICE_TARGET_HOURS),
-                ): vol.All(vol.Coerce(float), vol.In([0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0])),
+                    default=str(self._config_entry.data.get(CONF_PEAK_PRICE_TARGET_HOURS, DEFAULT_PEAK_PRICE_TARGET_HOURS)),
+                ): vol.In(["0.5", "1.0", "1.5", "2.0", "3.0", "4.0", "6.0"]),
                 vol.Optional(
                     CONF_USE_SUBUNITS,
                     default=self._config_entry.data.get(CONF_USE_SUBUNITS, DEFAULT_USE_SUBUNITS),
