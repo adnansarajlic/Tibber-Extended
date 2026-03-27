@@ -12,8 +12,8 @@
           "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
           "best_price_target_hours": "Antal billigaste timmar (N)",
           "peak_price_target_hours": "Antal dyraste timmar (N)",
-          "price_threshold": "Pris-tröskel (aktivera sensor under detta pris)",
-          "use_subunits": "Använd underenheter (öre/cent)",
+          "price_threshold": "Prisgräns (kr/EUR) - sensor aktiveras under detta värde",
+          "use_subunits": "Visa priser i öre/cent (istället för kr/EUR)",
           "restrict_time_start": "Sökfönster Start (valfritt, HH:MM)",
           "restrict_time_end": "Sökfönster Slut (valfritt, HH:MM)"
         }
@@ -42,8 +42,8 @@
           "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
           "best_price_target_hours": "Antal billigaste timmar (N)",
           "peak_price_target_hours": "Antal dyraste timmar (N)",
-          "price_threshold": "Pris-tröskel (aktivera sensor under detta pris)",
-          "use_subunits": "Använd underenheter (öre/cent)",
+          "price_threshold": "Prisgräns (kr/EUR) - sensor aktiveras under detta värde",
+          "use_subunits": "Visa priser i öre/cent (istället för kr/EUR)",
           "restrict_time_start": "Sökfönster Start (valfritt, HH:MM)",
           "restrict_time_end": "Sökfönster Slut (valfritt, HH:MM)"
         }

@@ -111,11 +111,15 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_RESOLUTION,
                     default="QUARTER_HOURLY"
                 ): vol.In(RESOLUTION_OPTIONS),
-                vol.Optional(
+                vol.Required(
                     CONF_CURRENCY,
                     default=DEFAULT_CURRENCY
                 ): vol.In(CURRENCY_OPTIONS),
                 vol.Optional(
+                    CONF_USE_SUBUNITS,
+                    default=DEFAULT_USE_SUBUNITS,
+                ): bool,
+                vol.Required(
                     CONF_UPDATE_TIMES,
                     default=default_times,
                 ): str,
@@ -127,10 +131,6 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_PEAK_PRICE_TARGET_HOURS,
                     default=str(DEFAULT_PEAK_PRICE_TARGET_HOURS),
                 ): vol.In(["0.5", "1.0", "1.5", "2.0", "3.0", "4.0", "6.0"]),
-                vol.Optional(
-                    CONF_USE_SUBUNITS,
-                    default=DEFAULT_USE_SUBUNITS,
-                ): bool,
                 vol.Optional(
                     CONF_PRICE_THRESHOLD,
                     default=DEFAULT_PRICE_THRESHOLD,
@@ -271,11 +271,19 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     CONF_RESOLUTION,
                     default=self._config_entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY"),
                 ): vol.In(RESOLUTION_OPTIONS),
-                vol.Optional(
+                vol.Required(
                     CONF_CURRENCY,
-                    default=self._config_entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY),
+                    default=self._config_entry.data.get(
+                        CONF_CURRENCY, DEFAULT_CURRENCY
+                    ),
                 ): vol.In(CURRENCY_OPTIONS),
                 vol.Optional(
+                    CONF_USE_SUBUNITS,
+                    default=self._config_entry.data.get(
+                        CONF_USE_SUBUNITS, DEFAULT_USE_SUBUNITS
+                    ),
+                ): bool,
+                vol.Required(
                     CONF_UPDATE_TIMES,
                     default=current_times_str,
                 ): str,
@@ -287,10 +295,6 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     CONF_PEAK_PRICE_TARGET_HOURS,
                     default=str(self._config_entry.data.get(CONF_PEAK_PRICE_TARGET_HOURS, DEFAULT_PEAK_PRICE_TARGET_HOURS)),
                 ): vol.In(["0.5", "1.0", "1.5", "2.0", "3.0", "4.0", "6.0"]),
-                vol.Optional(
-                    CONF_USE_SUBUNITS,
-                    default=self._config_entry.data.get(CONF_USE_SUBUNITS, DEFAULT_USE_SUBUNITS),
-                ): bool,
                 vol.Optional(
                     CONF_PRICE_THRESHOLD,
                     default=self._config_entry.data.get(CONF_PRICE_THRESHOLD, DEFAULT_PRICE_THRESHOLD),

@@ -9,10 +9,11 @@
           "home_name": "Home Name",
           "resolution": "Price Resolution",
           "currency": "Currency",
+          "use_subunits": "Show prices in cents/subs (instead of kr/EUR)",
           "update_times": "Update Times (HH:MM, comma separated)",
           "best_price_target_hours": "Target hours for \"Best Price\" (N-hours)",
           "peak_price_target_hours": "Target hours for \"Peak Price\" (N-hours)",
-          "use_subunits": "Show prices in subunits (e.g. cents instead of euros)",
+          "price_threshold": "Price Threshold (kr/EUR) - sensor activates below this value",
           "restrict_time_start": "Restrict start time (HH:MM, optional)",
           "restrict_time_end": "Restrict end time (HH:MM, optional)"
         }
@@ -38,10 +39,11 @@
           "home_name": "Home Name",
           "resolution": "Price Resolution",
           "currency": "Currency",
+          "use_subunits": "Show prices in cents/subs (instead of kr/EUR)",
           "update_times": "Update Times (HH:MM, comma separated)",
           "best_price_target_hours": "Target hours for \"Best Price\" (N-hours)",
           "peak_price_target_hours": "Target hours for \"Peak Price\" (N-hours)",
-          "use_subunits": "Show prices in subunits (e.g. cents instead of euros)",
+          "price_threshold": "Price Threshold (kr/EUR) - sensor activates below this value",
           "restrict_time_start": "Restrict start time (HH:MM, optional)",
           "restrict_time_end": "Restrict end time (HH:MM, optional)"
         }
