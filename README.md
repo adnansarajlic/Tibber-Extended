@@ -9,6 +9,8 @@ En integration som hämtar elpriser och prisnivåer från Tibber's API med avanc
 ## ✨ Funktioner
 
 - 🔄 Automatisk hämtning av dagens och morgondagens elpriser
+- 🪙 **Nyhet:** Valbart stöd för underenheter! Välj själv om du vill se priset i `kr` eller `öre` (eller `EUR` / `ct`). Skalar attributen därefter!
+- 🤖 **Nyhet:** Smarta binära automationssensorer (`binary_sensor`) som slås PÅ under de "N billigaste (alt. dyraste) sammanhängande timmarna" på dygnet. Perfekt för värmepumpar! Target-timmar ändras live i Configure.
 - 🔘 **Nyhet:** Manuell "Refresh"-knapp för att när som helst tvinga fram prisuppdateringar
 - 🛡️ Inbyggd retry-logik och optimerade API-anrop för att förhindra Timeout-fel
 - 📊 Prisnivåer (VERY_CHEAP, CHEAP, NORMAL, EXPENSIVE, VERY_EXPENSIVE) direkt från Tibber

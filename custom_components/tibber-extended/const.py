@@ -11,6 +11,16 @@ CONF_CURRENCY = "currency"
 # Tibber Demo Token - fungerar för testning men kan sluta fungera när som helst
 DEFAULT_DEMO_TOKEN = "3A77EECF61BD445F47241A5A36202185C35AF3AF58609E19B53F3A8872AD7BE1-1"
 
+# Binary Sensor Target Hours
+CONF_BEST_PRICE_TARGET_HOURS = "best_price_target_hours"
+CONF_PEAK_PRICE_TARGET_HOURS = "peak_price_target_hours"
+DEFAULT_BEST_PRICE_TARGET_HOURS = 3.0
+DEFAULT_PEAK_PRICE_TARGET_HOURS = 2.0
+
+# Subunits setup
+CONF_USE_SUBUNITS = "use_subunits"
+DEFAULT_USE_SUBUNITS = False
+
 # Default uppdateringstider (kl 13:00 och 15:00)
 DEFAULT_UPDATE_TIMES = ["13:00", "15:00"]
 

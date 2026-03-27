@@ -317,7 +317,22 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         self._currency = currency
         self._attr_name = f"{home_name} Electricity Price"
         self._attr_unique_id = f"{home_id}_electricity_price"
-        self._attr_native_unit_of_measurement = f"{currency}/kWh"
+        
+        # Läs av inställningen för underenheter (öre/ct) från options eller data
+        self.use_subunits = coordinator.entry.options.get(
+            "use_subunits", coordinator.entry.data.get("use_subunits", False)
+        )
+        
+        if self.use_subunits:
+            if currency in ["SEK", "NOK", "DKK"]:
+                self._attr_native_unit_of_measurement = "öre/kWh"
+            elif currency == "EUR":
+                self._attr_native_unit_of_measurement = "ct/kWh"
+            else:
+                self._attr_native_unit_of_measurement = "Sub/kWh"
+        else:
+            self._attr_native_unit_of_measurement = f"{currency}/kWh"
+            
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:flash"
         self._attr_available = False
@@ -412,7 +427,10 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         """Return the current total price."""
         price_point = self._get_current_price_point()
         if price_point:
-            return round(price_point.get("total", 0), 4)
+            total = price_point.get("total", 0)
+            if self.use_subunits:
+                return round(total * 100, 2)
+            return round(total, 4)
         return None
 
     @property
@@ -454,20 +472,36 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         
         current_price_point = self._get_current_price_point()
         
+        def format_price(val):
+            """Format price based on subunit setting."""
+            if val is None:
+                return None
+            return round(val * 100, 2) if self.use_subunits else round(val, 4)
+        
         def calculate_stats(prices, field):
             """Calculate min/max/avg for a specific field."""
             values = [p.get(field, 0) for p in prices if field in p]
             if values:
                 return {
-                    "min": round(min(values), 4),
-                    "max": round(max(values), 4),
-                    "avg": round(sum(values) / len(values), 4),
+                    "min": format_price(min(values)),
+                    "max": format_price(max(values)),
+                    "avg": format_price(sum(values) / len(values)),
                 }
             return {}
+            
+        current_total = current_price_point.get("total") if current_price_point else None
+        current_energy = current_price_point.get("energy") if current_price_point else None
+        current_tax = current_price_point.get("tax") if current_price_point else None
         
         attrs = {
+            "current_total": format_price(current_total),
+            "current_energy": format_price(current_energy),
+            "current_tax": format_price(current_tax),
+            "current_level": current_price_point.get("level", "UNKNOWN") if current_price_point else "UNKNOWN",
+            "current_starts_at": current_price_point.get("startsAt") if current_price_point else None,
             "currency": self._currency,
             "resolution": self.coordinator.resolution,
+            "use_subunits": self.use_subunits,
             "today": {
                 "prices": today_prices,
                 "count": len(today_prices),
