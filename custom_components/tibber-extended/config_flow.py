@@ -2,7 +2,6 @@
 import logging
 import voluptuous as vol
 import aiohttp
-import re
 
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -27,15 +26,14 @@ from .const import (
     DEFAULT_PEAK_PRICE_TARGET_HOURS,
     CONF_USE_SUBUNITS,
     DEFAULT_USE_SUBUNITS,
+    CONF_RESTRICT_TIME_START,
+    CONF_RESTRICT_TIME_END,
+    DEFAULT_RESTRICT_TIME_START,
+    DEFAULT_RESTRICT_TIME_END,
 )
+from .utils import validate_time_format
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def validate_time_format(time_str: str) -> bool:
-    """Validate time format HH:MM."""
-    pattern = r'^([0-1][0-9]|2[0-3]):([0-5][0-9])$'
-    return bool(re.match(pattern, time_str))
 
 
 class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -67,6 +65,18 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = "invalid_time_format"
                     break
             
+            if valid_times:
+                # Validera restrict times
+                restrict_start = user_input.get(CONF_RESTRICT_TIME_START, "").strip()
+                restrict_end = user_input.get(CONF_RESTRICT_TIME_END, "").strip()
+                
+                if restrict_start and not validate_time_format(restrict_start):
+                    valid_times = False
+                    errors["base"] = "invalid_time_format"
+                if restrict_end and not validate_time_format(restrict_end):
+                    valid_times = False
+                    errors["base"] = "invalid_time_format"
+                    
             if valid_times:
                 # Validera token
                 valid = await self._validate_token(token)
@@ -119,6 +129,14 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_USE_SUBUNITS,
                     default=DEFAULT_USE_SUBUNITS,
                 ): bool,
+                vol.Optional(
+                    CONF_RESTRICT_TIME_START,
+                    description={"suggested_value": DEFAULT_RESTRICT_TIME_START},
+                ): str,
+                vol.Optional(
+                    CONF_RESTRICT_TIME_END,
+                    description={"suggested_value": DEFAULT_RESTRICT_TIME_END},
+                ): str,
             }
         )
 
@@ -126,10 +144,6 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=data_schema,
             errors=errors,
-            description_placeholders={
-                "demo_token_info": "Lämna tomt för att använda Tibbers demo-token (kan sluta fungera)",
-                "time_format": "Ange tider separerade med komma, t.ex: 13:00, 15:00, 20:00",
-            }
         )
 
     async def _validate_token(self, token: str) -> bool:
@@ -201,6 +215,18 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     break
             
             if valid_times:
+                # Validera restrict times
+                restrict_start = user_input.get(CONF_RESTRICT_TIME_START, "").strip()
+                restrict_end = user_input.get(CONF_RESTRICT_TIME_END, "").strip()
+                
+                if restrict_start and not validate_time_format(restrict_start):
+                    valid_times = False
+                    errors["base"] = "invalid_time_format"
+                if restrict_end and not validate_time_format(restrict_end):
+                    valid_times = False
+                    errors["base"] = "invalid_time_format"
+                    
+            if valid_times:
                 # Validera token
                 valid = await self._validate_token(token)
                 
@@ -259,17 +285,21 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     CONF_USE_SUBUNITS,
                     default=self._config_entry.data.get(CONF_USE_SUBUNITS, DEFAULT_USE_SUBUNITS),
                 ): bool,
+                vol.Optional(
+                    CONF_RESTRICT_TIME_START,
+                    description={"suggested_value": self._config_entry.data.get(CONF_RESTRICT_TIME_START, DEFAULT_RESTRICT_TIME_START)},
+                ): str,
+                vol.Optional(
+                    CONF_RESTRICT_TIME_END,
+                    description={"suggested_value": self._config_entry.data.get(CONF_RESTRICT_TIME_END, DEFAULT_RESTRICT_TIME_END)},
+                ): str,
             }
         )
 
         return self.async_show_form(
-            step_id="init", 
+            step_id="init",
             data_schema=data_schema,
             errors=errors,
-            description_placeholders={
-                "time_format": "Ange tider separerade med komma, t.ex: 13:00, 15:00, 20:00",
-                "token_info": "Lämna tomt för att behålla nuvarande token",
-            }
         )
 
     async def _validate_token(self, token: str) -> bool:

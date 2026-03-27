@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Konfigurera Tibber Extended",
-        "description": "Ange dina inställningar för Tibber Extended. {demo_token_info}\n\nUppdateringstider: {time_format}",
+        "description": "",
         "data": {
           "access_token": "API Token (lämna tomt för demo-token)",
           "home_name": "Hemnamn",
@@ -12,7 +12,9 @@
           "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
           "best_price_target_hours": "Antal timmar för \"Billigast pris\" (N-timmar)",
           "peak_price_target_hours": "Antal timmar för \"Dyrast pris\" (N-timmar)",
-          "use_subunits": "Visa priser i underenheter (t.ex. öre istället för kr)"
+          "use_subunits": "Visa priser i underenheter (t.ex. öre istället för kr)",
+          "restrict_time_start": "Begränsa starttid (HH:MM, valfritt)",
+          "restrict_time_end": "Begränsa sluttid (HH:MM, valfritt)"
         }
       }
     },
@@ -30,7 +32,7 @@
     "step": {
       "init": {
         "title": "Uppdatera Tibber Extended-inställningar",
-        "description": "Uppdatera dina inställningar. {token_info}\n\nUppdateringstider: {time_format}",
+        "description": "",
         "data": {
           "access_token": "API Token (lämna tomt för att behålla nuvarande)",
           "home_name": "Hemnamn",
@@ -39,7 +41,9 @@
           "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
           "best_price_target_hours": "Antal timmar för \"Billigast pris\" (N-timmar)",
           "peak_price_target_hours": "Antal timmar för \"Dyrast pris\" (N-timmar)",
-          "use_subunits": "Visa priser i underenheter (t.ex. öre istället för kr)"
+          "use_subunits": "Visa priser i underenheter (t.ex. öre istället för kr)",
+          "restrict_time_start": "Begränsa starttid (HH:MM, valfritt)",
+          "restrict_time_end": "Begränsa sluttid (HH:MM, valfritt)"
         }
       }
     }

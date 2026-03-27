@@ -16,7 +16,10 @@ from .const import (
     DEFAULT_BEST_PRICE_TARGET_HOURS,
     DEFAULT_PEAK_PRICE_TARGET_HOURS,
     CONF_RESOLUTION,
+    CONF_RESTRICT_TIME_START,
+    CONF_RESTRICT_TIME_END,
 )
+from .utils import find_best_window
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,6 +75,14 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
         self.sensor_type = sensor_type  # "best" or "peak"
         self.target_hours = float(target_hours)
         self.resolution = resolution
+        
+        # Läs av optional time restrictions
+        self.restrict_start = coordinator.entry.options.get(
+            CONF_RESTRICT_TIME_START, coordinator.entry.data.get(CONF_RESTRICT_TIME_START, "")
+        )
+        self.restrict_end = coordinator.entry.options.get(
+            CONF_RESTRICT_TIME_END, coordinator.entry.data.get(CONF_RESTRICT_TIME_END, "")
+        )
         
         type_name = "Best Price" if sensor_type == "best" else "Peak Price"
         self._attr_name = f"{home_name} {type_name}"
@@ -137,31 +148,32 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
             return
 
         today_prices = data[self.home_id].get("today", [])
-        if not today_prices:
+        tomorrow_prices = data[self.home_id].get("tomorrow", [])
+        
+        # Kombinera listorna för att kunna hitta fönster som spänner över midnatt
+        all_prices = today_prices + tomorrow_prices
+        
+        if not all_prices:
             return
             
         slots_needed = int(self.target_hours * (4 if self.resolution == "QUARTER_HOURLY" else 1))
         
-        if len(today_prices) < slots_needed:
+        best_window_start, best_window_sum = find_best_window(
+            all_prices, 
+            slots_needed, 
+            self.sensor_type, 
+            self.resolution, 
+            self.restrict_start, 
+            self.restrict_end
+        )
+                    
+        if best_window_start is None:
+            self.period_start = None
+            self.period_end = None
+            self.avg_price = None
             return
             
-        best_window_start = 0
-        best_window_sum = float("inf") if self.sensor_type == "best" else float("-inf")
-        
-        for i in range(len(today_prices) - slots_needed + 1):
-            window = today_prices[i:i + slots_needed]
-            window_sum = sum(p["total"] for p in window)
-            
-            if self.sensor_type == "best":
-                if window_sum < best_window_sum:
-                    best_window_sum = window_sum
-                    best_window_start = i
-            else:
-                if window_sum > best_window_sum:
-                    best_window_sum = window_sum
-                    best_window_start = i
-                    
-        best_window = today_prices[best_window_start:best_window_start + slots_needed]
+        best_window = all_prices[best_window_start:best_window_start + slots_needed]
         
         self.period_start = best_window[0]["startsAt"]
         
@@ -174,3 +186,4 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
             
         self.period_end = end_dt.isoformat()
         self.avg_price = best_window_sum / slots_needed
+

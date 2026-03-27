@@ -9,21 +9,16 @@ En integration som hämtar elpriser och prisnivåer från Tibber's API med avanc
 ## ✨ Funktioner
 
 - 🔄 Automatisk hämtning av dagens och morgondagens elpriser
-- 🪙 **Nyhet:** Valbart stöd för underenheter! Välj själv om du vill se priset i `kr` eller `öre` (eller `EUR` / `ct`). Skalar attributen därefter!
-- 🤖 **Nyhet:** Smarta binära automationssensorer (`binary_sensor`) som slås PÅ under de "N billigaste (alt. dyraste) sammanhängande timmarna" på dygnet. Perfekt för värmepumpar! Standard är 3 timmar, men kan ändras direkt under _Configure_.
-- 🔘 **Nyhet:** Manuell "Refresh"-knapp för att när som helst tvinga fram prisuppdateringar
-- 🛡️ Inbyggd retry-logik och optimerade API-anrop för att förhindra Timeout-fel
-- 📊 Prisnivåer (VERY_CHEAP, CHEAP, NORMAL, EXPENSIVE, VERY_EXPENSIVE) direkt från Tibber
-- ⏰ Flera konfigurerbara uppdateringstider (t.ex. kl 13:00 och 15:00)
-- 🕐 Stöd för QUARTER_HOURLY (15 min) eller HOURLY (60 min) upplösning
-- 🏠 Anpassningsbara hemnamn för sensornamn
-- 💱 Välj valuta (SEK, NOK, EUR, DKK)
-- 🆓 Demo-token inkluderad för testning
-- 🌍 Svenskt och engelskt språkstöd
-- 📈 Detaljerad prisdata: total, energi, skatt
-- ⚡ Automatisk uppdatering varje kvart/timme
-- 🔧 Ändra inställningar utan att ta bort integration
-- 📈 Automatisk beräkning av min/max/medelpris
+- 🪙 **Valbart stöd för underenheter:** Välj själv om du vill se priset i `kr` eller `öre` (eller `EUR` / `ct`). Skalar automatiskt alla attribut!
+- 🤖 **Smarta binära automationssensorer:** Färdiga sensorer för billigaste/dyraste timmarna som räknar över midnatt och kan tidsbegränsas. Slut på krånglig YAML-kod!
+- 🔘 **Manuell "Refresh"-knapp:** Tvinga fram prisuppdateringar när du vill.
+- 📊 Prisnivåer (`VERY_CHEAP`, `CHEAP`, `NORMAL`, `EXPENSIVE`, `VERY_EXPENSIVE`) direkt från Tibber.
+- ⏰ Flera konfigurerbara uppdateringstider (t.ex. kl 13:00 och 15:00).
+- 🕐 Stöd för `QUARTER_HOURLY` (15 min) eller `HOURLY` (60 min) upplösning.
+- 🏠 Anpassningsbara hemnamn och valuta (SEK, NOK, EUR, DKK).
+- 🌍 Svenskt och engelskt språkstöd.
+- 🔧 Ändra inställningar live utan att installera om.
+- 📈 Automatisk beräkning av min/max/medelpris för idag och imorgon.
 
 ## 📦 Installation via HACS
 
@@ -76,6 +71,31 @@ För personlig användning med rätt elområde, hämta din egen token:
 - Upplösning: QUARTER_HOURLY
 - Valuta: SEK
 - Uppdateringstider: 13:00 och 15:00
+
+### 🪙 Prisvisning: Kr eller Öre?
+
+Du kan när som helst växla mellan att visa huvudvärdet i basenhet (t.ex. kr) eller underenhet (t.ex. öre). Detta påverkar både huvudenhetens state och alla attribut som rör priser (min, max, medel).
+
+| Inställning | Huvudvärde (State) | Attribut (min / max / avg) |
+| :--- | :--- | :--- |
+| **Standard** | `0.45 kr/kWh` | `0.45` |
+| **Underenheter** | `45.00 öre/kWh` | `45.0` |
+
+---
+
+## 🤖 Smarta Binära Sensorer
+
+Integrationen skapar två binära sensorer per hem som förenklar din automation avsevärt. Dessa sensorer räknar på **all tillgänglig data** (både idag och imorgon) för att hitta det absolut bästa fönstret.
+
+### `binary_sensor.[hem]_best_price`
+Slås på under de **N billigaste** sammanhängande timmarna. 
+*   **Sömlös midnattsövergång:** Om de billigaste timmarna är kl 23:00 till 02:00 kommer sensorn vara `ON` hela tiden utan avbrott vid midnatt.
+*   **Tidsbegränsning (Valfritt):** Du kan ställa in ett tidsfönster (t.ex. 22:00–06:00) i inställningarna. Sensorn kommer då endast söka efter det billigaste priset inom det valda fönstret.
+
+### `binary_sensor.[hem]_peak_price`
+Slås på under de **N dyraste** timmarna. Perfekt för att stänga av tunga laster (t.ex. elvärme) när priset är som högst.
+
+---
 
 ### Varför flera uppdateringstider?
 
@@ -140,6 +160,16 @@ Integrationen skapar EN sensor per hem:
 }
 ```
 
+---
+
+## ⚙️ Hur det fungerar (Under huven)
+
+För att ge en så stabil upplevelse som möjligt använder Tibber Extended några smarta logiker:
+
+*   **5-sekunders-shiften:** Exakt kl 23:59:55 flyttar integrationen morgondagens priser till "idag" internt. Detta gör att dina grafer och sensorer uppdateras omedelbart vid midnatt utan att behöva vänta på ett segt API-anrop.
+*   **12:45-regeln:** Integrationen hämtar endast morgondagens priser efter kl 12:45. Detta görs för att undvika "504 Gateway Timeout"-fel hos Tibber, då sökningarna blir halva storleken fram till dess att morgondagens priser faktiskt finns tillgängliga.
+*   **Retry med optimering:** Om Tibber har driftstörningar försöker vi igen med en smart algoritm för att inte överbelasta deras tjänst.
+
 ## 🤖 Automatiseringsexempel
 
 ### Starta tvättmaskin vid billigt pris
@@ -165,6 +195,21 @@ actions:
       message: >
         Nu är elpriset {{ states('sensor.mitt_hem_electricity_price') }}
         kr/kWh.  Perfekt tid att starta tvättmaskin eller diskmaskin!
+
+### Starta billaddaren (Det enkla sättet)
+
+Genom att använda de inbyggda binära sensorerna blir dina automationsregler extremt enkla. Ingen template-kod behövs!
+
+```yaml
+alias: "Bil: Ladda under billigaste timmarna"
+trigger:
+  - trigger: state
+    entity_id: binary_sensor.mitt_hem_best_price
+    to: "on"
+actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.elbil_laddare
 ```
 
 ### Hitta billigaste 3-timmarsperioden idag
@@ -276,6 +321,22 @@ automation:
           temperature: 20
 ```
 
+### Visa priser i HA Price Timeline Card
+Integrationen är byggd för att fungera direkt med [ha-price-timeline-card](https://github.com/Neisi/ha-price-timeline-card) utan behov av extra yaml-mallar! Attributet `timeline_data` exponerar exakt det dataformat som kortet förväntar sig. 
+
+Du kan även koppla in dina binära automationssensorer för att färglägga billiga/dyra timmar direkt i grafen.
+
+```yaml
+type: custom:price-timeline-card
+price: sensor.mitt_hem_electricity_price
+view: graph
+slider: true
+cheap_times: true
+cheap_time_sources:
+  - binary_sensor.mitt_hem_best_price
+```
+
+
 ### Visa priser i Apexcharts kort
 
 ![Apexcharts Card exempel](image.png)
@@ -377,6 +438,17 @@ show:
   name: true
   state: true
 ```
+
+---
+
+## 🛠 För Utvecklare
+
+### Tester och stabilitet
+Vi använder automatiserade enhetstester för att säkerställa att prisberäkningarna och tidsfilter alltid fungerar korrekt.
+
+*   **CI/CD:** Alla ändringar testas automatiskt via GitHub Actions på Python 3.11 och 3.12.
+*   **Kör lokalt:** Om du vill bidra kan du köra testerna själv med `python -m pytest tests/`.
+*   **Linting:** Vi använder `Ruff` för att hålla koden ren och fri från fel.
 
 ## 🤝 Bidra
 
