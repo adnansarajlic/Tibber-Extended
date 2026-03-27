@@ -27,9 +27,10 @@ from .const import (
     CONF_USE_SUBUNITS,
     DEFAULT_USE_SUBUNITS,
     CONF_RESTRICT_TIME_START,
-    CONF_RESTRICT_TIME_END,
     DEFAULT_RESTRICT_TIME_START,
     DEFAULT_RESTRICT_TIME_END,
+    CONF_PRICE_THRESHOLD,
+    DEFAULT_PRICE_THRESHOLD,
 )
 from .utils import validate_time_format
 
@@ -129,6 +130,10 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_USE_SUBUNITS,
                     default=DEFAULT_USE_SUBUNITS,
                 ): bool,
+                vol.Optional(
+                    CONF_PRICE_THRESHOLD,
+                    default=DEFAULT_PRICE_THRESHOLD,
+                ): vol.Coerce(float),
                 vol.Optional(
                     CONF_RESTRICT_TIME_START,
                     description={"suggested_value": DEFAULT_RESTRICT_TIME_START},
@@ -285,6 +290,10 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     CONF_USE_SUBUNITS,
                     default=self._config_entry.data.get(CONF_USE_SUBUNITS, DEFAULT_USE_SUBUNITS),
                 ): bool,
+                vol.Optional(
+                    CONF_PRICE_THRESHOLD,
+                    default=self._config_entry.data.get(CONF_PRICE_THRESHOLD, DEFAULT_PRICE_THRESHOLD),
+                ): vol.Coerce(float),
                 vol.Optional(
                     CONF_RESTRICT_TIME_START,
                     description={"suggested_value": self._config_entry.data.get(CONF_RESTRICT_TIME_START, DEFAULT_RESTRICT_TIME_START)},

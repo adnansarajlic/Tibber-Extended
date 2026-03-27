@@ -20,6 +20,8 @@ En integration som hämtar elpriser och prisnivåer från Tibber's API med avanc
 - 🌍 **Robust Tidszonshantering:** Hämtar hemmets tidszon direkt från Tibber för korrekt midnattsskift oavsett var HA-servern står.
 - 🔧 Ändra inställningar live utan att installera om.
 - 📈 Automatisk beräkning av min/max/medelpris för idag och imorgon.
+- ⚡ **Månadsförbrukning:** Se total kWh och kostnad (SEK/EUR) för den pågående månaden.
+- 🏢 **Elnätsbolag:** Diagnostisk sensor som visar ditt nätbolag.
 - 🚀 **Optimerad Prestanda:** Smart Caching och Shared Session för minimal API-belastning och hög stabilitet vid VPN.
 
 ## 📦 Installation via HACS
@@ -97,6 +99,9 @@ Slås på under de **N billigaste** sammanhängande timmarna.
 ### `binary_sensor.[hem]_peak_price`
 Slås på under de **N dyraste** timmarna. Perfekt för att stänga av tunga laster (t.ex. elvärme) när priset är som högst.
 
+### `binary_sensor.[hem]_price_threshold`
+Slås på så fort det aktuella elpriset understiger en gräns som du själv ställer in i integrationens inställningar (Options Flow). Perfekt för att t.ex. endast ladda bilen när priset är under 50 öre.
+
 ---
 
 ### Varför flera uppdateringstider?
@@ -108,9 +113,10 @@ Tibber publicerar:
 
 ## 📊 Sensor
 
-Integrationen skapar EN sensor per hem:
+Integrationen skapar flera sensorer per hem:
 
 ### `sensor.[hemnamn]_electricity_price`
+Huvudsensorn för elpris.
 
 **State:** Aktuellt totalpris (kr/kWh eller vald valuta)
 
@@ -162,6 +168,18 @@ Integrationen skapar EN sensor per hem:
   }
 }
 ```
+
+---
+
+### `sensor.[hemnamn]_monthly_consumption`
+**State:** Totalt antal kWh för den pågående kalendermånaden.
+**Attribut:**
+- `monthly_cost`: Ackumulerad kostnad i din valuta.
+- `currency`: Vald valuta.
+- `data_delay_info`: Information om att konsumtionsdata ofta släpar 24-48 timmar.
+
+### `sensor.[hemnamn]_grid_company`
+**State:** Namnet på ditt elnätsbolag (t.ex. `Vattenfall`, `E.ON`).
 
 ---
 
