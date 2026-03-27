@@ -56,17 +56,24 @@ async def async_setup_entry(
     currency = entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
     entities = []
 
-    # Skapa sensor även om ingen data finns än
+    # Skapa sensorer för varje hem
     if coordinator.data:
         for home_id, home_data in coordinator.data.items():
-            _LOGGER.info(f"Creating sensor for home: {home_id}")
+            _LOGGER.info(f"Creating sensors for home: {home_id}")
+            # Huvud-prissensor
             entities.append(TibberPriceSensor(coordinator, home_id, home_name, currency))
+
+            # Elnätsbolag
+            entities.append(TibberDetailsSensor(coordinator, home_id, home_name, "grid_company", "Grid Company", "mdi:transmission-tower"))
+
+            # Månadsförbrukning (Ny!)
+            entities.append(TibberConsumptionSensor(coordinator, home_id, home_name))
     else:
-        _LOGGER.warning("No data available yet, creating sensor anyway")
+        _LOGGER.warning("No data available yet, creating basic sensor anyway")
         entities.append(TibberPriceSensor(coordinator, "pending", home_name, currency))
 
     async_add_entities(entities, True)
-    _LOGGER.info(f"Added {len(entities)} Tibber sensors")
+    _LOGGER.info(f"Added {len(entities)} Tibber sensors (including metadata)")
 
 
 class TibberDataCoordinator(DataUpdateCoordinator):
@@ -214,6 +221,17 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                     id
                     appNickname
                     timeZone
+                    meteringPointData {
+                        gridCompany
+                    }
+                    consumption(resolution: DAILY, last: 31) {
+                        nodes {
+                            from
+                            to
+                            cost
+                            consumption
+                        }
+                    }
                     currentSubscription {
                         priceInfo(resolution: %s) {
                             today {
@@ -233,7 +251,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
-            "User-Agent": "HomeAssistant/Tibber-Extended (v1.1.2)",
+            "User-Agent": "HomeAssistant/Tibber-Extended (1.1.4)",
         }
 
         max_attempts = 3
@@ -294,6 +312,10 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                             "name": home.get("appNickname", "Home"),
                             "today": price_info.get("today", []),
                             "tomorrow": price_info.get("tomorrow", existing_tomorrow),
+                            "consumption": home.get("consumption", {}).get("nodes", []),
+                            "metadata": {
+                                "grid_company": (home.get("meteringPointData") or {}).get("gridCompany"),
+                            }
                         }
 
                     _LOGGER.info(f"Fetched Tibber data for {len(homes_data)} home(s)")
@@ -456,3 +478,110 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
                 "energy": calc(tomorrow_prices, "energy"),
             },
         }
+
+
+class TibberConsumptionSensor(CoordinatorEntity, SensorEntity):
+    """Sensor for monthly electricity consumption."""
+
+    def __init__(self, coordinator, home_id, home_name):
+        """Initialize."""
+        super().__init__(coordinator)
+        self._home_id = home_id
+        self._attr_name = f"{home_name} Monthly Consumption"
+        self._attr_unique_id = f"{home_id}_monthly_consumption"
+        self._attr_native_unit_of_measurement = "kWh"
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_icon = "mdi:counter"
+
+    @property
+    def available(self) -> bool:
+        """Return availability."""
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.data
+            and self._home_id in self.coordinator.data
+        )
+
+    def _get_monthly_data(self):
+        """Calculate consumption and cost for the current month."""
+        if not self.available:
+            return 0.0, 0.0
+
+        nodes = self.coordinator.data[self._home_id].get("consumption", [])
+        if not nodes:
+            return 0.0, 0.0
+
+        # Hämta nuvarande månad i hemmets tidszon
+        now = self.coordinator._now_in_home_tz(self._home_id)
+        current_month = now.month
+        current_year = now.year
+
+        total_consumption = 0.0
+        total_cost = 0.0
+
+        for node in nodes:
+            # Tibber returnerar "from" i UTC, konvertera för att kolla månad
+            from_dt = dt_util.parse_datetime(node["from"])
+            if not from_dt:
+                continue
+
+            # Kolla om noden tillhör nuvarande kalendermånad
+            if from_dt.month == current_month and from_dt.year == current_year:
+                total_consumption += node.get("consumption") or 0.0
+                total_cost += node.get("cost") or 0.0
+
+        return round(total_consumption, 2), round(total_cost, 2)
+
+    @property
+    def native_value(self):
+        """Return the total consumption for the current month."""
+        consumption, _ = self._get_monthly_data()
+        return consumption
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        _, cost = self._get_monthly_data()
+        currency = self.coordinator.entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+
+        return {
+            "monthly_cost": cost,
+            "currency": currency,
+            "data_delay_info": "Consumption data is typically delayed 24-48h by the grid company."
+        }
+
+
+class TibberDetailsSensor(CoordinatorEntity, SensorEntity):
+    """Diagnostic sensor for Tibber home metadata."""
+
+    def __init__(self, coordinator, home_id, home_name, key, label, icon):
+        """Initialize."""
+        super().__init__(coordinator)
+        self._home_id = home_id
+        self._key = key
+        self._attr_name = f"{home_name} {label}"
+        self._attr_unique_id = f"{home_id}_{key}"
+        self._attr_icon = icon
+        self._attr_entity_category = "diagnostic"
+
+    @property
+    def available(self) -> bool:
+        """Return availability."""
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.data
+            and self._home_id in self.coordinator.data
+        )
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        if not self.available:
+            return None
+        metadata = self.coordinator.data[self._home_id].get("metadata", {})
+        return metadata.get(self._key)
+
+    @property
+    def extra_state_attributes(self):
+        """Return attributes."""
+        return {}

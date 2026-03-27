@@ -17,6 +17,10 @@ CONF_PEAK_PRICE_TARGET_HOURS = "peak_price_target_hours"
 DEFAULT_BEST_PRICE_TARGET_HOURS = 3.0
 DEFAULT_PEAK_PRICE_TARGET_HOURS = 3.0
 
+# Price Threshold Sensor
+CONF_PRICE_THRESHOLD = "price_threshold"
+DEFAULT_PRICE_THRESHOLD = 0.50
+
 # Optional Time Restrictions
 CONF_RESTRICT_TIME_START = "restrict_time_start"
 CONF_RESTRICT_TIME_END = "restrict_time_end"

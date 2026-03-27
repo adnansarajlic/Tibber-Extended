@@ -18,6 +18,8 @@ from .const import (
     CONF_RESOLUTION,
     CONF_RESTRICT_TIME_START,
     CONF_RESTRICT_TIME_END,
+    CONF_PRICE_THRESHOLD,
+    DEFAULT_PRICE_THRESHOLD,
 )
 from .utils import find_best_window
 
@@ -57,6 +59,9 @@ async def async_setup_entry(
                 ),
                 TibberTargetHoursBinarySensor(
                     coordinator, home_id, home_name, "peak", peak_target, resolution
+                ),
+                TibberThresholdBinarySensor(
+                    coordinator, home_id, home_name
                 ),
             ])
 
@@ -186,4 +191,93 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
 
         self.period_end = end_dt.isoformat()
         self.avg_price = best_window_sum / slots_needed
+
+
+class TibberThresholdBinarySensor(BinarySensorEntity):
+    """Binary sensor that is ON when price is below a threshold."""
+
+    def __init__(self, coordinator, home_id, home_name):
+        """Initialize the binary sensor."""
+        self.coordinator = coordinator
+        self.home_id = home_id
+        self._attr_name = f"{home_name} Below Price Threshold"
+        self._attr_unique_id = f"tibber_extended_{home_id}_price_threshold"
+        self._attr_icon = "mdi:cash-multiple"
+
+    @property
+    def should_poll(self):
+        """Return False as updates are handled by the coordinator."""
+        return False
+
+    @property
+    def is_on(self):
+        """Return true if the current price is below the threshold."""
+        if not self.coordinator.data or self.home_id not in self.coordinator.data:
+            return False
+
+        # Hämta nuvarande tröskel från konfig
+        threshold = float(self.coordinator.entry.options.get(
+            CONF_PRICE_THRESHOLD,
+            self.coordinator.entry.data.get(CONF_PRICE_THRESHOLD, DEFAULT_PRICE_THRESHOLD)
+        ))
+
+        today_prices = self.coordinator.data[self.home_id].get("today", [])
+        if not today_prices:
+            return False
+
+        # Matchning mot hemmets tidszon
+        now = dt_util.now()
+        for p in today_prices:
+            st = dt_util.parse_datetime(p["startsAt"])
+            if not st:
+                continue
+
+            home_tz_name = self.coordinator._home_timezones.get(self.home_id)
+            if home_tz_name:
+                try:
+                    from zoneinfo import ZoneInfo
+                    st = st.astimezone(ZoneInfo(home_tz_name))
+                    now_tz = now.astimezone(ZoneInfo(home_tz_name))
+                except Exception:
+                    now_tz = now
+            else:
+                now_tz = now
+
+            interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
+            if st <= now_tz < st + timedelta(minutes=interval):
+                return float(p.get("total", 0)) < threshold
+
+        return False
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        threshold = float(self.coordinator.entry.options.get(
+            CONF_PRICE_THRESHOLD,
+            self.coordinator.entry.data.get(CONF_PRICE_THRESHOLD, DEFAULT_PRICE_THRESHOLD)
+        ))
+        return {
+            "threshold": threshold,
+        }
+
+    async def async_added_to_hass(self):
+        """When entity is added to hass."""
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self._handle_coordinator_update)
+        )
+        # Vi triggar även en uppdatering varje kvart/timme för att hålla kollen
+        minutes = [0, 15, 30, 45] if self.coordinator.resolution == "QUARTER_HOURLY" else [0]
+        for minute in minutes:
+            from homeassistant.helpers.event import async_track_time_change
+            self.async_on_remove(
+                async_track_time_change(self.hass, self._update_state, minute=minute, second=2)
+            )
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self.async_write_ha_state()
+
+    async def _update_state(self, now=None):
+        """Update the state without a coordinator fetch."""
+        self.async_write_ha_state()
 

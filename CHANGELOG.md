@@ -2,6 +2,17 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.1.4] - 2026-03-27
+
+### Added
+- **Månadsförbruknings-sensor**: Ny sensor som visar total kWh och ackumulerad kostnad för den pågående kalendermånaden.
+- **Elnätsbolag-sensor**: Diagnostisk sensor som visar vilket elnätsbolag som ansvarar för din adress.
+- **Pris-tröskel-sensor**: Ny binär sensor som aktiveras när elpriset går under ett användardefinierat gränsvärde (konfigurerbart via Options Flow).
+- **Automationstöd**: Fullt stöd och dokumentation för hur de nya sensorerna kan användas i smarta hem-automatiseringar.
+
+### Fixed
+- **Robustare tester**: Utökat testsviten med `tests/test_new_features.py` som verifierar all ny logik för förbrukning och trösklar.
+
 ## [1.1.2] - 2026-03-27
 
 ### Added
