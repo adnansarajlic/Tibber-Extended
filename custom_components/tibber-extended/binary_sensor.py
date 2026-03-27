@@ -42,6 +42,9 @@ async def async_setup_entry(
 
     entities = []
     
+    if not coordinator.data:
+        await coordinator.async_config_entry_first_refresh()
+        
     if coordinator.data:
         for home_id in coordinator.data:
             _LOGGER.info(f"Creating binary sensors for home: {home_id}")
