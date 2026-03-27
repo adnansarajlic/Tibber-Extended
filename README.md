@@ -17,6 +17,7 @@ En integration som hämtar elpriser och prisnivåer från Tibber's API med avanc
 - 🕐 Stöd för `QUARTER_HOURLY` (15 min) eller `HOURLY` (60 min) upplösning.
 - 🏠 Anpassningsbara hemnamn och valuta (SEK, NOK, EUR, DKK).
 - 🌍 Svenskt och engelskt språkstöd.
+- 🌍 **Robust Tidszonshantering:** Hämtar hemmets tidszon direkt från Tibber för korrekt midnattsskift oavsett var HA-servern står.
 - 🔧 Ändra inställningar live utan att installera om.
 - 📈 Automatisk beräkning av min/max/medelpris för idag och imorgon.
 - 🚀 **Optimerad Prestanda:** Smart Caching och Shared Session för minimal API-belastning och hög stabilitet vid VPN.
