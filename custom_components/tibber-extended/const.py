@@ -13,9 +13,11 @@ DEFAULT_DEMO_TOKEN = "3A77EECF61BD445F47241A5A36202185C35AF3AF58609E19B53F3A8872
 
 # Binary Sensor Target Hours
 CONF_BEST_PRICE_TARGET_HOURS = "best_price_target_hours"
+CONF_BEST_PRICE_SPANS = "best_price_spans"
 CONF_PEAK_PRICE_TARGET_HOURS = "peak_price_target_hours"
 DEFAULT_BEST_PRICE_TARGET_HOURS = 3.0
 DEFAULT_PEAK_PRICE_TARGET_HOURS = 3.0
+DEFAULT_BEST_PRICE_SPANS = "3.0"
 
 # Price Threshold Sensor
 CONF_PRICE_THRESHOLD = "price_threshold"
@@ -31,8 +33,8 @@ DEFAULT_RESTRICT_TIME_END = ""
 CONF_USE_SUBUNITS = "use_subunits"
 DEFAULT_USE_SUBUNITS = False
 
-# Default uppdateringstider (kl 13:00 och 15:00)
-DEFAULT_UPDATE_TIMES = ["13:00", "15:00"]
+# Default uppdateringstider (kl 13:00, 14:00 och 15:00)
+DEFAULT_UPDATE_TIMES = ["13:00", "14:00", "15:00"]
 
 # Default valuta
 DEFAULT_CURRENCY = "SEK"

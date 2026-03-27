@@ -1,0 +1,11 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\adnan\Kod\GitHub\Tibber-Extended
+plugins: asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 51 items
+
+tests\test_coordinator.py ..........                                     [ 19%]
+tests\test_utils.py .........................................            [100%]
+
+============================= 51 passed in 0.27s ==============================

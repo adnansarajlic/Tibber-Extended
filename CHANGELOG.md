@@ -2,6 +2,32 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.1.7] - 2026-03-27
+
+### Added
+- **Stöd för multipla Best Price-sensorer**: Nu kan man konfigurera flera olika tidsspann för billigaste pris (t.ex. `1, 3, 6`) som resulterar i separata binära sensorer. Perfekt för att styra olika laster med olika behov.
+
+### Changed
+- Refaktorerat `best_price_target_hours` till `best_price_spans` (textfält istället för dropdown).
+
+### Documentation
+- Uppdaterat README med instruktioner för de nya multipla sensorerna.
+
+
+## [1.1.6] - 2026-03-27
+
+### Changed
+- **Split av förbrukningssensor**: Den tidigare kombinerade månadsförbrukningssensorn har delats upp i två separata enheter: `Monthly Consumption` (kWh) och `Monthly Cost` (Valuta). Detta ger bättre kompatibilitet med HAs interna statistikverktyg och dashboards.
+- **Hårdkodad schemaläggning**: Uppdateringstiderna är nu hårdkodade till 13, 14, 15 för enklare setup.
+- **Boolean-fix för availability**: Säkerställt att sensorernas `available`-egenskap alltid returnerar en ren boolean, vilket fixar potentiella problem i HA:s state machine.
+
+### Added
+- **Utökad testsvit**: Lagt till 4 nya robusta tester (totalt 50 st) som verifierar schemaläggningslogik, Smart Caching edge-cases och sensorernas tillgänglighetsstatus.
+
+### Documentation
+- Uppdaterat README för att reflektera sensor-splitten och den automatiserade schemaläggningen.
+
+
 ## [1.1.4] - 2026-03-27
 
 ### Added

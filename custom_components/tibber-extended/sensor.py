@@ -66,8 +66,9 @@ async def async_setup_entry(
             # Elnätsbolag
             entities.append(TibberDetailsSensor(coordinator, home_id, home_name, "grid_company", "Grid Company", "mdi:transmission-tower"))
 
-            # Månadsförbrukning (Ny!)
-            entities.append(TibberConsumptionSensor(coordinator, home_id, home_name))
+            # Månadsförbrukning (Energi & Kostnad separat)
+            entities.append(TibberEnergyConsumptionSensor(coordinator, home_id, home_name))
+            entities.append(TibberCostConsumptionSensor(coordinator, home_id, home_name))
     else:
         _LOGGER.warning("No data available yet, creating basic sensor anyway")
         entities.append(TibberPriceSensor(coordinator, "pending", home_name, currency))
@@ -83,7 +84,8 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         """Initialize."""
         self.token = entry.data[CONF_ACCESS_TOKEN]
         self.resolution = entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY")
-        self.update_times = entry.data.get(CONF_UPDATE_TIMES, DEFAULT_UPDATE_TIMES)
+        # Hårdkoda uppdateringstider till 13, 14, 15 (ignorerar gammal config)
+        self.update_times = DEFAULT_UPDATE_TIMES
         self.entry = entry
         self._last_midnight_shift = None  # Håll koll på när vi senast flyttade data
         self._force_update = False  # Flagga för att tvinga fram API-anrop (bypass cache)
@@ -381,7 +383,7 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         if self._home_id == "pending" and self.coordinator.data:
             self._home_id = list(self.coordinator.data.keys())[0]
             self._attr_unique_id = f"{self._home_id}_electricity_price"
-        return self._home_id in self.coordinator.data
+        return bool(self._home_id in self.coordinator.data)
 
     def _get_current_price_point(self):
         """Get current data using home timezone."""
@@ -480,8 +482,8 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         }
 
 
-class TibberConsumptionSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for monthly electricity consumption."""
+class TibberEnergyConsumptionSensor(CoordinatorEntity, SensorEntity):
+    """Sensor for monthly electricity consumption (kWh)."""
 
     def __init__(self, coordinator, home_id, home_name):
         """Initialize."""
@@ -496,58 +498,110 @@ class TibberConsumptionSensor(CoordinatorEntity, SensorEntity):
     @property
     def available(self) -> bool:
         """Return availability."""
-        return (
+        return bool(
             self.coordinator.last_update_success
             and self.coordinator.data
             and self._home_id in self.coordinator.data
         )
 
-    def _get_monthly_data(self):
-        """Calculate consumption and cost for the current month."""
+    def _get_monthly_energy(self):
+        """Calculate consumption (kWh) for the current month."""
         if not self.available:
-            return 0.0, 0.0
+            return 0.0
 
         nodes = self.coordinator.data[self._home_id].get("consumption", [])
         if not nodes:
-            return 0.0, 0.0
+            return 0.0
 
-        # Hämta nuvarande månad i hemmets tidszon
         now = self.coordinator._now_in_home_tz(self._home_id)
         current_month = now.month
         current_year = now.year
 
         total_consumption = 0.0
-        total_cost = 0.0
-
         for node in nodes:
-            # Tibber returnerar "from" i UTC, konvertera för att kolla månad
             from_dt = dt_util.parse_datetime(node["from"])
             if not from_dt:
                 continue
-
-            # Kolla om noden tillhör nuvarande kalendermånad
             if from_dt.month == current_month and from_dt.year == current_year:
                 total_consumption += node.get("consumption") or 0.0
-                total_cost += node.get("cost") or 0.0
 
-        return round(total_consumption, 2), round(total_cost, 2)
+        return round(total_consumption, 2)
 
     @property
     def native_value(self):
         """Return the total consumption for the current month."""
-        consumption, _ = self._get_monthly_data()
-        return consumption
+        return self._get_monthly_energy()
 
     @property
     def extra_state_attributes(self):
         """Return additional attributes."""
-        _, cost = self._get_monthly_data()
-        currency = self.coordinator.entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
-
         return {
-            "monthly_cost": cost,
-            "currency": currency,
             "data_delay_info": "Consumption data is typically delayed 24-48h by the grid company."
+        }
+
+
+class TibberCostConsumptionSensor(CoordinatorEntity, SensorEntity):
+    """Sensor for monthly electricity cost."""
+
+    def __init__(self, coordinator, home_id, home_name):
+        """Initialize."""
+        super().__init__(coordinator)
+        self._home_id = home_id
+        self._attr_name = f"{home_name} Monthly Cost"
+        self._attr_unique_id = f"{home_id}_monthly_cost"
+        
+        currency = coordinator.entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+        from .utils import get_unit_label
+        # Vi använder basenheten (kr/EUR) för total månadskostnad, oavsett subunit-inställning
+        self._attr_native_unit_of_measurement = get_unit_label(currency, False).split("/")[0]
+        
+        self._attr_device_class = SensorDeviceClass.MONETARY
+        self._attr_icon = "mdi:cash"
+
+    @property
+    def available(self) -> bool:
+        """Return availability."""
+        return bool(
+            self.coordinator.last_update_success
+            and self.coordinator.data
+            and self._home_id in self.coordinator.data
+        )
+
+    def _get_monthly_cost(self):
+        """Calculate cost for the current month."""
+        if not self.available:
+            return 0.0
+
+        nodes = self.coordinator.data[self._home_id].get("consumption", [])
+        if not nodes:
+            return 0.0
+
+        now = self.coordinator._now_in_home_tz(self._home_id)
+        current_month = now.month
+        current_year = now.year
+
+        total_cost = 0.0
+        for node in nodes:
+            from_dt = dt_util.parse_datetime(node["from"])
+            if not from_dt:
+                continue
+            if from_dt.month == current_month and from_dt.year == current_year:
+                total_cost += node.get("cost") or 0.0
+
+        return round(total_cost, 2)
+
+    @property
+    def native_value(self):
+        """Return the total cost for the current month."""
+        return self._get_monthly_cost()
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional attributes."""
+        currency = self.coordinator.entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+        return {
+            "currency": currency,
+            "data_delay_info": "Cost data is typically delayed 24-48h by the grid company."
         }
 
 
@@ -567,7 +621,7 @@ class TibberDetailsSensor(CoordinatorEntity, SensorEntity):
     @property
     def available(self) -> bool:
         """Return availability."""
-        return (
+        return bool(
             self.coordinator.last_update_success
             and self.coordinator.data
             and self._home_id in self.coordinator.data

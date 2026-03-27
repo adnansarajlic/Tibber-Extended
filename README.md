@@ -13,14 +13,14 @@ En integration som hämtar elpriser och prisnivåer från Tibber's API med avanc
 - 🤖 **Smarta binära automationssensorer:** Färdiga sensorer för billigaste/dyraste timmarna som räknar över midnatt och kan tidsbegränsas. Slut på krånglig YAML-kod!
 - 🔘 **Manuell "Refresh"-knapp:** Tvinga fram prisuppdateringar när du vill.
 - 📊 Prisnivåer (`VERY_CHEAP`, `CHEAP`, `NORMAL`, `EXPENSIVE`, `VERY_EXPENSIVE`) direkt från Tibber.
-- ⏰ Flera konfigurerbara uppdateringstider (t.ex. kl 13:00 och 15:00).
+- ⏰ **Automatiserade uppdateringar:** Integrationen sköter själv schemaläggning (kl 13, 14, 15) för att pricka in när priserna släpps.
 - 🕐 Stöd för `QUARTER_HOURLY` (15 min) eller `HOURLY` (60 min) upplösning.
 - 🏠 Anpassningsbara hemnamn och valuta (SEK, NOK, EUR, DKK).
 - 🌍 Svenskt och engelskt språkstöd.
 - 🌍 **Robust Tidszonshantering:** Hämtar hemmets tidszon direkt från Tibber för korrekt midnattsskift oavsett var HA-servern står.
 - 🔧 Ändra inställningar live utan att installera om.
 - 📈 Automatisk beräkning av min/max/medelpris för idag och imorgon.
-- ⚡ **Månadsförbrukning:** Se total kWh och kostnad (SEK/EUR) för den pågående månaden.
+- ⚡ **Månadsförbrukning:** Se total kWh och kostnad separat (två olika sensorer).
 - 🏢 **Elnätsbolag:** Diagnostisk sensor som visar ditt nätbolag.
 - 🚀 **Optimerad Prestanda:** Smart Caching och Shared Session för minimal API-belastning och hög stabilitet vid VPN.
 
@@ -67,14 +67,14 @@ För personlig användning med rätt elområde, hämta din egen token:
    - **Hemnamn**: T.ex. "Mitt Hem" (används i sensornamn)
    - **Prisupplösning**: QUARTER_HOURLY (15 min) eller HOURLY (60 min)
    - **Valuta**: SEK, NOK, EUR eller DKK
-   - **Uppdateringstider**: T.ex. "13:00, 15:00" (kommaseparerade)
+   - **Valuta**: SEK, NOK, EUR eller DKK (används för sensorernas enhet)
 
 **Standardvärden:**
 - Demo-token används om inget anges
 - Hemnamn: "Mitt Hem"
 - Upplösning: QUARTER_HOURLY
 - Valuta: SEK
-- Uppdateringstider: 13:00 och 15:00
+- Valuta: SEK
 
 ### 🪙 Prisvisning: Kr eller Öre?
 
@@ -91,8 +91,9 @@ Du kan när som helst växla mellan att visa huvudvärdet i basenhet (t.ex. kr) 
 
 Integrationen skapar två binära sensorer per hem som förenklar din automation avsevärt. Dessa sensorer räknar på **all tillgänglig data** (både idag och imorgon) för att hitta det absolut bästa fönstret.
 
-### `binary_sensor.[hem]_best_price`
+### `binary_sensor.[hem]_best_price_[N]h`
 Slås på under de **N billigaste** sammanhängande timmarna. 
+*   **Stöd för flera fönster:** Du kan ställa in flera olika spann (t.ex. `1, 3, 6`) i inställningarna för att skapa separata sensorer för olika ändamål.
 *   **Sömlös midnattsövergång:** Om de billigaste timmarna är kl 23:00 till 02:00 kommer sensorn vara `ON` hela tiden utan avbrott vid midnatt.
 *   **Tidsbegränsning (Valfritt):** Du kan ställa in ett tidsfönster (t.ex. 22:00–06:00) i inställningarna. Sensorn kommer då endast söka efter det billigaste priset inom det valda fönstret.
 
@@ -104,12 +105,13 @@ Slås på så fort det aktuella elpriset understiger en gräns som du själv st�
 
 ---
 
-### Varför flera uppdateringstider?
+### Automatiserad Schemaläggning
 
-Tibber publicerar:
-- **13:00-14:00**: Morgondagens priser släpps oftast här
-- **15:00**: Extra kontroll om priser missades
-- **20:00** (valfritt): För att säkerställa senaste data
+Tibber Extended sköter nu automatiskt sina uppdateringar för att säkerställa att du alltid har morgondagens priser så fort de blir tillgängliga:
+- **13:00**: Första försöket när Nord Pool publicerat priserna.
+- **14:00 & 15:00**: Extra kontroller om priser skulle vara försenade från Tibbers API.
+
+Tack vare **Smart Caching** görs de extra kontrollerna endast om morgondagens priser faktiskt saknas i minnet.
 
 ## 📊 Sensor
 
@@ -174,9 +176,13 @@ Huvudsensorn för elpris.
 ### `sensor.[hemnamn]_monthly_consumption`
 **State:** Totalt antal kWh för den pågående kalendermånaden.
 **Attribut:**
-- `monthly_cost`: Ackumulerad kostnad i din valuta.
-- `currency`: Vald valuta.
 - `data_delay_info`: Information om att konsumtionsdata ofta släpar 24-48 timmar.
+
+### `sensor.[hemnamn]_monthly_cost`
+**State:** Ackumulerad kostnad i din valuta (t.ex. SEK eller EUR).
+**Attribut:**
+- `currency`: Vald valuta.
+- `data_delay_info`: Information om att kostnadsdata ofta släpar.
 
 ### `sensor.[hemnamn]_grid_company`
 **State:** Namnet på ditt elnätsbolag (t.ex. `Vattenfall`, `E.ON`).
