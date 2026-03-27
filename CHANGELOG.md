@@ -10,7 +10,7 @@ Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna f
 - **Konfigurerbara Måltimmar & Tidsfönster**: Bestäm helt själv i integrationens _Configure_-dialog om "billigast period" innebär 1, 2, 3 eller upp till 6 timmar (Standard är 3 timmar). Du kan dessutom tidsbegränsa sökningen, exempelvis till att endast leta dalar mellan 22:00 och 06:00.
 - **Refresh-knapp**: En ny knappentitet (`button.[hemnamn]_update_prices`) för att manuellt kunna begära en prishämtning när som helst.
 - **Utökad Loggning**: Mätning av API-svarstider i millisekunder samt extra information i loggarna vid fel och automagiska retries.
-- **Native Price Timeline Card Stöd**: Sensorn exponerar nu ett attribut `timeline_data` formaterat exakt för att fungera plug-and-play med kortet `ha-price-timeline-card` från Lovelace. Kombinerar automatiskt "idag" och "imorgon" i en snygg graf utan extra konfiguration.
+- **Native Price Timeline Card Stöd**: Sensorn exponerar nu attributet `data` (och aliaset `timeline_data`) formaterat exakt för att fungera plug-and-play med kortet `ha-price-timeline-card` från Lovelace. Kombinerar automatiskt "idag" och "imorgon" i en snygg graf utan extra konfiguration.
 
 ### Changed
 - **Optimerad API-förfrågan**: Morgondagens priser hämtas nu enbart efter klockan 12:45 för att drastiskt minska datalasten och förhindra `504 Gateway Timeout` hos Tibber.

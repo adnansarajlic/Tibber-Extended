@@ -495,6 +495,7 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
             "currency": self._currency,
             "resolution": self.coordinator.resolution,
             "use_subunits": self.use_subunits,
+            "data": timeline_data,
             "timeline_data": timeline_data,
             "today": {
                 "prices": today_prices,

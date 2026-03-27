@@ -322,7 +322,7 @@ automation:
 ```
 
 ### Visa priser i HA Price Timeline Card
-Integrationen är byggd för att fungera direkt med [ha-price-timeline-card](https://github.com/Neisi/ha-price-timeline-card) utan behov av extra yaml-mallar! Attributet `timeline_data` exponerar exakt det dataformat som kortet förväntar sig. 
+Integrationen är byggd för att fungera direkt med [ha-price-timeline-card](https://github.com/Neisi/ha-price-timeline-card) utan behov av extra yaml-mallar! Attributet `data` (och aliaset `timeline_data`) exponerar exakt det dataformat som kortet förväntar sig. 
 
 Du kan även koppla in dina binära automationssensorer för att färglägga billiga/dyra timmar direkt i grafen.
 
