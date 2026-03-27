@@ -48,43 +48,43 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Validate the token
             token = user_input.get(CONF_ACCESS_TOKEN, "").strip()
-            
+
             # Om användaren lämnade tomt, använd demo token
             if not token:
                 token = DEFAULT_DEMO_TOKEN
                 user_input[CONF_ACCESS_TOKEN] = token
-            
+
             # Validera update_times format
             update_times_str = user_input.get(CONF_UPDATE_TIMES, "")
             times_list = [t.strip() for t in update_times_str.split(",") if t.strip()]
-            
+
             valid_times = True
             for time_str in times_list:
                 if not validate_time_format(time_str):
                     valid_times = False
                     errors["base"] = "invalid_time_format"
                     break
-            
+
             if valid_times:
                 # Validera restrict times
                 restrict_start = user_input.get(CONF_RESTRICT_TIME_START, "").strip()
                 restrict_end = user_input.get(CONF_RESTRICT_TIME_END, "").strip()
-                
+
                 if restrict_start and not validate_time_format(restrict_start):
                     valid_times = False
                     errors["base"] = "invalid_time_format"
                 if restrict_end and not validate_time_format(restrict_end):
                     valid_times = False
                     errors["base"] = "invalid_time_format"
-                    
+
             if valid_times:
                 # Validera token
                 valid = await self._validate_token(token)
-                
+
                 if valid:
                     # Spara times_list istället för sträng
                     user_input[CONF_UPDATE_TIMES] = times_list if times_list else DEFAULT_UPDATE_TIMES
-                    
+
                     return self.async_create_entry(
                         title=user_input.get(CONF_HOME_NAME, "Tibber Extended"),
                         data=user_input,
@@ -94,7 +94,7 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         # Skapa default värden
         default_times = ", ".join(DEFAULT_UPDATE_TIMES)
-        
+
         data_schema = vol.Schema(
             {
                 vol.Optional(
@@ -106,7 +106,7 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     default="Mitt Hem"
                 ): str,
                 vol.Optional(
-                    CONF_RESOLUTION, 
+                    CONF_RESOLUTION,
                     default="QUARTER_HOURLY"
                 ): vol.In(RESOLUTION_OPTIONS),
                 vol.Optional(
@@ -152,7 +152,7 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
-        
+
         query = """
         {
             viewer {
@@ -162,7 +162,7 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         }
         """
-        
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -176,7 +176,7 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         return "errors" not in data
         except Exception as err:
             _LOGGER.error("Error validating token: %s", err)
-        
+
         return False
 
     @staticmethod
@@ -196,50 +196,50 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None) -> FlowResult:
         """Manage the options."""
         errors = {}
-        
+
         if user_input is not None:
             # Validera token om angiven
             token = user_input.get(CONF_ACCESS_TOKEN, "").strip()
             if not token:
                 token = self._config_entry.data.get(CONF_ACCESS_TOKEN, DEFAULT_DEMO_TOKEN)
-            
+
             # Validera update_times format
             update_times_str = user_input.get(CONF_UPDATE_TIMES, "")
             times_list = [t.strip() for t in update_times_str.split(",") if t.strip()]
-            
+
             valid_times = True
             for time_str in times_list:
                 if not validate_time_format(time_str):
                     valid_times = False
                     errors["base"] = "invalid_time_format"
                     break
-            
+
             if valid_times:
                 # Validera restrict times
                 restrict_start = user_input.get(CONF_RESTRICT_TIME_START, "").strip()
                 restrict_end = user_input.get(CONF_RESTRICT_TIME_END, "").strip()
-                
+
                 if restrict_start and not validate_time_format(restrict_start):
                     valid_times = False
                     errors["base"] = "invalid_time_format"
                 if restrict_end and not validate_time_format(restrict_end):
                     valid_times = False
                     errors["base"] = "invalid_time_format"
-                    
+
             if valid_times:
                 # Validera token
                 valid = await self._validate_token(token)
-                
+
                 if valid:
                     user_input[CONF_UPDATE_TIMES] = times_list if times_list else DEFAULT_UPDATE_TIMES
                     user_input[CONF_ACCESS_TOKEN] = token
-                    
+
                     # Uppdatera config entry data
                     self.hass.config_entries.async_update_entry(
                         self._config_entry,
                         data={**self._config_entry.data, **user_input}
                     )
-                    
+
                     return self.async_create_entry(title="", data={})
                 else:
                     errors["base"] = "invalid_token"
@@ -308,7 +308,7 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
-        
+
         query = """
         {
             viewer {
@@ -318,7 +318,7 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
             }
         }
         """
-        
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -332,6 +332,5 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                         return "errors" not in data
         except Exception as err:
             _LOGGER.error("Error validating token: %s", err)
-        
+
         return False
-    

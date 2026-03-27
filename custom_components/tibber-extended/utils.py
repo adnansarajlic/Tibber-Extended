@@ -34,7 +34,7 @@ def find_best_window(all_prices, slots_needed, sensor_type, resolution, restrict
 
     for i in range(len(all_prices) - slots_needed + 1):
         window = all_prices[i:i + slots_needed]
-        
+
         # Check time restrictions
         valid_window = True
         if start_t and end_t:
@@ -52,12 +52,12 @@ def find_best_window(all_prices, slots_needed, sensor_type, resolution, restrict
                 except Exception:
                     valid_window = False
                     break
-                    
+
         if not valid_window:
             continue
-            
+
         window_sum = sum(p.get("total", 0) for p in window)
-        
+
         if sensor_type == "best":
             if window_sum < best_window_sum:
                 best_window_sum = window_sum
@@ -78,7 +78,7 @@ def format_price_value(value, use_subunits):
 
 def get_unit_label(currency, use_subunits):
     """Return the correct unit label for a given currency and subunit setting.
-    
+
     Examples:
         get_unit_label("SEK", False) -> "SEK/kWh"
         get_unit_label("SEK", True)  -> "öre/kWh"
