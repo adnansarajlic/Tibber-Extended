@@ -24,6 +24,7 @@ class MockDataUpdateCoordinator(MockBase):
 # Skapa moduler
 mock_ha = MagicMock()
 sys.modules["homeassistant"] = mock_ha
+sys.modules["aiohttp"] = MagicMock()  # Lägg till mock för aiohttp
 sys.modules["homeassistant.components"] = MagicMock()
 sys.modules["homeassistant.components.sensor"] = MagicMock()
 sys.modules["homeassistant.components.sensor"].SensorEntity = MockEntity
