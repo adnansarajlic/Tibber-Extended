@@ -62,7 +62,7 @@ async def async_setup_entry(
             _LOGGER.info(f"Creating sensors for home: {home_id}")
             # Huvud-prissensor
             entities.append(TibberPriceSensor(coordinator, home_id, home_name, currency))
-            
+
             # Elnätsbolag
             entities.append(TibberDetailsSensor(coordinator, home_id, home_name, "grid_company", "Grid Company", "mdi:transmission-tower"))
 
@@ -497,8 +497,8 @@ class TibberConsumptionSensor(CoordinatorEntity, SensorEntity):
     def available(self) -> bool:
         """Return availability."""
         return (
-            self.coordinator.last_update_success 
-            and self.coordinator.data 
+            self.coordinator.last_update_success
+            and self.coordinator.data
             and self._home_id in self.coordinator.data
         )
 
@@ -524,7 +524,7 @@ class TibberConsumptionSensor(CoordinatorEntity, SensorEntity):
             from_dt = dt_util.parse_datetime(node["from"])
             if not from_dt:
                 continue
-            
+
             # Kolla om noden tillhör nuvarande kalendermånad
             if from_dt.month == current_month and from_dt.year == current_year:
                 total_consumption += node.get("consumption") or 0.0
@@ -543,7 +543,7 @@ class TibberConsumptionSensor(CoordinatorEntity, SensorEntity):
         """Return additional attributes."""
         _, cost = self._get_monthly_data()
         currency = self.coordinator.entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
-        
+
         return {
             "monthly_cost": cost,
             "currency": currency,
@@ -568,8 +568,8 @@ class TibberDetailsSensor(CoordinatorEntity, SensorEntity):
     def available(self) -> bool:
         """Return availability."""
         return (
-            self.coordinator.last_update_success 
-            and self.coordinator.data 
+            self.coordinator.last_update_success
+            and self.coordinator.data
             and self._home_id in self.coordinator.data
         )
 

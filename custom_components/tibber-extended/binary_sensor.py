@@ -217,7 +217,7 @@ class TibberThresholdBinarySensor(BinarySensorEntity):
 
         # Hämta nuvarande tröskel från konfig
         threshold = float(self.coordinator.entry.options.get(
-            CONF_PRICE_THRESHOLD, 
+            CONF_PRICE_THRESHOLD,
             self.coordinator.entry.data.get(CONF_PRICE_THRESHOLD, DEFAULT_PRICE_THRESHOLD)
         ))
 
@@ -231,7 +231,7 @@ class TibberThresholdBinarySensor(BinarySensorEntity):
             st = dt_util.parse_datetime(p["startsAt"])
             if not st:
                 continue
-            
+
             home_tz_name = self.coordinator._home_timezones.get(self.home_id)
             if home_tz_name:
                 try:
@@ -253,7 +253,7 @@ class TibberThresholdBinarySensor(BinarySensorEntity):
     def extra_state_attributes(self):
         """Return the state attributes."""
         threshold = float(self.coordinator.entry.options.get(
-            CONF_PRICE_THRESHOLD, 
+            CONF_PRICE_THRESHOLD,
             self.coordinator.entry.data.get(CONF_PRICE_THRESHOLD, DEFAULT_PRICE_THRESHOLD)
         ))
         return {
