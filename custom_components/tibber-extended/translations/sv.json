@@ -9,10 +9,11 @@
           "home_name": "Hemnamn",
           "resolution": "Prisupplösning",
           "currency": "Valuta",
+          "use_subunits": "Visa priser i öre/cent (istället för kr/EUR)",
           "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
           "best_price_target_hours": "Antal timmar för \"Billigast pris\" (N-timmar)",
           "peak_price_target_hours": "Antal timmar för \"Dyrast pris\" (N-timmar)",
-          "use_subunits": "Visa priser i underenheter (t.ex. öre istället för kr)",
+          "price_threshold": "Prisgräns (kr/EUR) - sensor aktiveras under detta värde",
           "restrict_time_start": "Begränsa starttid (HH:MM, valfritt)",
           "restrict_time_end": "Begränsa sluttid (HH:MM, valfritt)"
         }
@@ -38,10 +39,11 @@
           "home_name": "Hemnamn",
           "resolution": "Prisupplösning",
           "currency": "Valuta",
+          "use_subunits": "Visa priser i öre/cent (istället för kr/EUR)",
           "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
           "best_price_target_hours": "Antal timmar för \"Billigast pris\" (N-timmar)",
           "peak_price_target_hours": "Antal timmar för \"Dyrast pris\" (N-timmar)",
-          "use_subunits": "Visa priser i underenheter (t.ex. öre istället för kr)",
+          "price_threshold": "Prisgräns (kr/EUR) - sensor aktiveras under detta värde",
           "restrict_time_start": "Begränsa starttid (HH:MM, valfritt)",
           "restrict_time_end": "Begränsa sluttid (HH:MM, valfritt)"
         }
