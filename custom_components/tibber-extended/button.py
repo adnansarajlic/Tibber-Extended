@@ -24,7 +24,7 @@ async def async_setup_entry(
         return
 
     home_name = entry.data.get(CONF_HOME_NAME, "Mitt Hem")
-    
+
     async_add_entities([TibberRefreshButton(coordinator, home_name)], True)
     _LOGGER.info("Successfully setup Tibber refresh button")
 

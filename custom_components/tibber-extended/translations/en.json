@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Configure Tibber Extended",
-        "description": "Enter your Tibber Extended settings. {demo_token_info}\n\nUpdate times: {time_format}",
+        "description": "",
         "data": {
           "access_token": "API Token (leave empty for demo token)",
           "home_name": "Home Name",
@@ -12,7 +12,9 @@
           "update_times": "Update Times (HH:MM, comma separated)",
           "best_price_target_hours": "Target hours for \"Best Price\" (N-hours)",
           "peak_price_target_hours": "Target hours for \"Peak Price\" (N-hours)",
-          "use_subunits": "Show prices in subunits (e.g. cents instead of euros)"
+          "use_subunits": "Show prices in subunits (e.g. cents instead of euros)",
+          "restrict_time_start": "Restrict start time (HH:MM, optional)",
+          "restrict_time_end": "Restrict end time (HH:MM, optional)"
         }
       }
     },
@@ -30,7 +32,7 @@
     "step": {
       "init": {
         "title": "Update Tibber Extended Settings",
-        "description": "Update your settings. {token_info}\n\nUpdate times: {time_format}",
+        "description": "",
         "data": {
           "access_token": "API Token (leave empty to keep current)",
           "home_name": "Home Name",
@@ -39,7 +41,9 @@
           "update_times": "Update Times (HH:MM, comma separated)",
           "best_price_target_hours": "Target hours for \"Best Price\" (N-hours)",
           "peak_price_target_hours": "Target hours for \"Peak Price\" (N-hours)",
-          "use_subunits": "Show prices in subunits (e.g. cents instead of euros)"
+          "use_subunits": "Show prices in subunits (e.g. cents instead of euros)",
+          "restrict_time_start": "Restrict start time (HH:MM, optional)",
+          "restrict_time_end": "Restrict end time (HH:MM, optional)"
         }
       }
     }

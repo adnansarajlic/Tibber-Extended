@@ -9,14 +9,17 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DOMAIN, 
+    DOMAIN,
     CONF_HOME_NAME,
     CONF_BEST_PRICE_TARGET_HOURS,
     CONF_PEAK_PRICE_TARGET_HOURS,
     DEFAULT_BEST_PRICE_TARGET_HOURS,
     DEFAULT_PEAK_PRICE_TARGET_HOURS,
     CONF_RESOLUTION,
+    CONF_RESTRICT_TIME_START,
+    CONF_RESTRICT_TIME_END,
 )
+from .utils import find_best_window
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,16 +38,16 @@ async def async_setup_entry(
 
     home_name = entry.data.get(CONF_HOME_NAME, "Mitt Hem")
     resolution = entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY")
-    
+
     # Om inga values finns i options, fall back till data, annars default
     best_target = float(entry.options.get(CONF_BEST_PRICE_TARGET_HOURS, entry.data.get(CONF_BEST_PRICE_TARGET_HOURS, DEFAULT_BEST_PRICE_TARGET_HOURS)))
     peak_target = float(entry.options.get(CONF_PEAK_PRICE_TARGET_HOURS, entry.data.get(CONF_PEAK_PRICE_TARGET_HOURS, DEFAULT_PEAK_PRICE_TARGET_HOURS)))
 
     entities = []
-    
+
     if not coordinator.data:
         await coordinator.async_config_entry_first_refresh()
-        
+
     if coordinator.data:
         for home_id in coordinator.data:
             _LOGGER.info(f"Creating binary sensors for home: {home_id}")
@@ -56,7 +59,7 @@ async def async_setup_entry(
                     coordinator, home_id, home_name, "peak", peak_target, resolution
                 ),
             ])
-    
+
     if entities:
         async_add_entities(entities, True)
         _LOGGER.info(f"Successfully setup Tibber binary sensors for {home_name}")
@@ -72,12 +75,20 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
         self.sensor_type = sensor_type  # "best" or "peak"
         self.target_hours = float(target_hours)
         self.resolution = resolution
-        
+
+        # Läs av optional time restrictions
+        self.restrict_start = coordinator.entry.options.get(
+            CONF_RESTRICT_TIME_START, coordinator.entry.data.get(CONF_RESTRICT_TIME_START, "")
+        )
+        self.restrict_end = coordinator.entry.options.get(
+            CONF_RESTRICT_TIME_END, coordinator.entry.data.get(CONF_RESTRICT_TIME_END, "")
+        )
+
         type_name = "Best Price" if sensor_type == "best" else "Peak Price"
         self._attr_name = f"{home_name} {type_name}"
         self._attr_unique_id = f"tibber_extended_{home_id}_{sensor_type}_price"
         self._attr_icon = "mdi:cash-check" if sensor_type == "best" else "mdi:cash-remove"
-        
+
         self.period_start = None
         self.period_end = None
         self.avg_price = None
@@ -92,7 +103,7 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
         """Return true if the binary sensor is on."""
         if not self.period_start or not self.period_end:
             return False
-        
+
         now = dt_util.now()
         try:
             from dateutil.parser import isoparse
@@ -115,7 +126,7 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
             attrs["period_end"] = self.period_end
         if self.avg_price is not None:
             attrs["avg_price_in_period"] = round(self.avg_price, 4)
-            
+
         return attrs
 
     async def async_added_to_hass(self):
@@ -137,40 +148,42 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
             return
 
         today_prices = data[self.home_id].get("today", [])
-        if not today_prices:
+        tomorrow_prices = data[self.home_id].get("tomorrow", [])
+
+        # Kombinera listorna för att kunna hitta fönster som spänner över midnatt
+        all_prices = today_prices + tomorrow_prices
+
+        if not all_prices:
             return
-            
+
         slots_needed = int(self.target_hours * (4 if self.resolution == "QUARTER_HOURLY" else 1))
-        
-        if len(today_prices) < slots_needed:
+
+        best_window_start, best_window_sum = find_best_window(
+            all_prices,
+            slots_needed,
+            self.sensor_type,
+            self.resolution,
+            self.restrict_start,
+            self.restrict_end
+        )
+
+        if best_window_start is None:
+            self.period_start = None
+            self.period_end = None
+            self.avg_price = None
             return
-            
-        best_window_start = 0
-        best_window_sum = float("inf") if self.sensor_type == "best" else float("-inf")
-        
-        for i in range(len(today_prices) - slots_needed + 1):
-            window = today_prices[i:i + slots_needed]
-            window_sum = sum(p["total"] for p in window)
-            
-            if self.sensor_type == "best":
-                if window_sum < best_window_sum:
-                    best_window_sum = window_sum
-                    best_window_start = i
-            else:
-                if window_sum > best_window_sum:
-                    best_window_sum = window_sum
-                    best_window_start = i
-                    
-        best_window = today_prices[best_window_start:best_window_start + slots_needed]
-        
+
+        best_window = all_prices[best_window_start:best_window_start + slots_needed]
+
         self.period_start = best_window[0]["startsAt"]
-        
+
         from dateutil.parser import isoparse
         end_dt = isoparse(best_window[-1]["startsAt"])
         if self.resolution == "QUARTER_HOURLY":
             end_dt += timedelta(minutes=15)
         else:
             end_dt += timedelta(hours=1)
-            
+
         self.period_end = end_dt.isoformat()
         self.avg_price = best_window_sum / slots_needed
+

@@ -1,6 +1,6 @@
 """Sensor platform for Tibber Extended."""
 import logging
-from datetime import datetime, timedelta, time
+from datetime import timedelta, time
 import aiohttp
 import asyncio
 import time as time_mod
@@ -14,7 +14,7 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from homeassistant.helpers.event import async_track_time_change, async_track_time_interval
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -28,6 +28,7 @@ from .const import (
     DEFAULT_CURRENCY,
     TIBBER_API_URL,
 )
+from .utils import format_price_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,20 +40,20 @@ async def async_setup_entry(
 ) -> None:
     """Set up Tibber Extended sensors."""
     coordinator = TibberDataCoordinator(hass, entry)
-    
+
     # Spara koordinator så button.py kan hitta den
     hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
-    
+
     # Försök hämta data första gången
     try:
         await coordinator.async_config_entry_first_refresh()
     except Exception as err:
         _LOGGER.error("Failed to fetch initial data: %s", err)
-    
+
     home_name = entry.data.get(CONF_HOME_NAME, "Mitt Hem")
     currency = entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
     entities = []
-    
+
     # Skapa sensor även om ingen data finns än
     if coordinator.data:
         for home_id, home_data in coordinator.data.items():
@@ -76,7 +77,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         self.update_times = entry.data.get(CONF_UPDATE_TIMES, DEFAULT_UPDATE_TIMES)
         self.entry = entry
         self._last_midnight_shift = None  # Håll koll på när vi senast flyttade data
-        
+
         # Konvertera update_times till time-objekt
         self.update_times_parsed = []
         for time_str in self.update_times:
@@ -98,7 +99,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
             name=DOMAIN,
             update_interval=None,
         )
-        
+
         self._setup_time_triggers()
 
     def _setup_time_triggers(self):
@@ -113,7 +114,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                 second=0,
             )
             _LOGGER.info(f"Scheduled data fetch at {update_time.hour:02d}:{update_time.minute:02d}")
-        
+
         # Flytta tomorrow → today 5 sekunder före midnatt (UTAN API-anrop)
         async_track_time_change(
             self.hass,
@@ -132,28 +133,28 @@ class TibberDataCoordinator(DataUpdateCoordinator):
     async def _handle_midnight_shift(self, now):
         """Shift tomorrow prices to today at midnight."""
         current_date = now.date()
-        
+
         # Kontrollera så vi inte kör flera gånger samma natt
         if self._last_midnight_shift == current_date:
             _LOGGER.debug("Midnight shift already performed today")
             return
-        
+
         _LOGGER.info(f"Midnight shift triggered at {now}")
-        
+
         if not self.data:
             _LOGGER.warning("No data to shift at midnight")
             return
-        
+
         # Flytta tomorrow → today för alla hem
         for home_id in self.data.keys():
             tomorrow_prices = self.data[home_id].get("tomorrow", [])
-            
+
             if tomorrow_prices:
                 _LOGGER.info(
                     f"Shifting {len(tomorrow_prices)} prices from tomorrow to today "
                     f"for home {home_id}"
                 )
-                
+
                 # Flytta morgondagens priser till idag
                 self.data[home_id]["today"] = tomorrow_prices
                 # Töm morgondagens priser
@@ -162,10 +163,10 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning(
                     f"No tomorrow prices available to shift for home {home_id}"
                 )
-        
+
         # Markera att vi gjort shiften
         self._last_midnight_shift = current_date
-        
+
         # Trigga uppdatering av alla sensorer
         self.async_set_updated_data(self.data)
         _LOGGER.info("Midnight shift completed, sensors updated")
@@ -173,11 +174,11 @@ class TibberDataCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Fetch data from Tibber API."""
         _LOGGER.debug(f"Fetching data with resolution: {self.resolution}")
-        
+
         # Bara hämta morgondagens priser efter kl 12:45 för att undvika 504 Timeout på stora förfrågningar
         now_time = dt_util.now().time()
         fetch_tomorrow = now_time >= time(12, 45)
-        
+
         tomorrow_query = """
                             tomorrow {
                                 total
@@ -216,7 +217,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
 
         max_retries = 2
         request_start_time = time_mod.time()
-        
+
         for attempt in range(max_retries):
             try:
                 _LOGGER.debug(f"Starting API request (Attempt {attempt + 1}/{max_retries})")
@@ -233,51 +234,51 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                                 await asyncio.sleep(2)
                                 continue
                             raise UpdateFailed(f"API error: {response.status} (Attempt {attempt + 1})")
-                        
+
                         elapsed = round(time_mod.time() - request_start_time, 2)
                         _LOGGER.debug(f"API response received in {elapsed}s")
-                        
+
                         data = await response.json()
-                        
+
                         if "errors" in data:
                             error_msg = data['errors'][0].get('message', 'Unknown error')
                             _LOGGER.error(f"GraphQL error: {error_msg}")
                             raise UpdateFailed(f"GraphQL error: {error_msg}")
-                        
+
                         homes_data = {}
                         viewer_data = data.get("data", {}).get("viewer", {})
                         homes = viewer_data.get("homes", [])
-                        
+
                         if not homes:
                             _LOGGER.warning("No homes found in Tibber account")
                             return homes_data
-                        
+
                         for home in homes:
                             home_id = home["id"]
                             subscription = home.get("currentSubscription")
-                            
+
                             if not subscription:
                                 _LOGGER.warning(f"No subscription found for home {home_id}")
                                 continue
-                            
+
                             price_info = subscription.get("priceInfo", {})
-                            
+
                             # Hämta befintlig tomorrow data om vi har någon och inte hämtar ny
                             existing_tomorrow = []
                             if self.data and home_id in self.data:
                                 existing_tomorrow = self.data[home_id].get("tomorrow", [])
-                                
+
                             homes_data[home_id] = {
                                 "name": home.get("appNickname", "Home"),
                                 "today": price_info.get("today", []),
                                 "tomorrow": price_info.get("tomorrow", existing_tomorrow),
                             }
-                            
+
                             _LOGGER.debug(
                                 f"Home {home_id}: {len(homes_data[home_id]['today'])} today prices, "
                                 f"{len(homes_data[home_id]['tomorrow'])} tomorrow prices"
                             )
-                        
+
                         _LOGGER.info(
                             f"Successfully fetched data for {len(homes_data)} home(s) "
                             f"in {elapsed}s (Tomorrow fetched: {fetch_tomorrow})"
@@ -317,27 +318,20 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         self._currency = currency
         self._attr_name = f"{home_name} Electricity Price"
         self._attr_unique_id = f"{home_id}_electricity_price"
-        
+
         # Läs av inställningen för underenheter (öre/ct) från options eller data
         self.use_subunits = coordinator.entry.options.get(
             "use_subunits", coordinator.entry.data.get("use_subunits", False)
         )
-        
-        if self.use_subunits:
-            if currency in ["SEK", "NOK", "DKK"]:
-                self._attr_native_unit_of_measurement = "öre/kWh"
-            elif currency == "EUR":
-                self._attr_native_unit_of_measurement = "ct/kWh"
-            else:
-                self._attr_native_unit_of_measurement = "Sub/kWh"
-        else:
-            self._attr_native_unit_of_measurement = f"{currency}/kWh"
-            
+
+        from .utils import get_unit_label
+        self._attr_native_unit_of_measurement = get_unit_label(currency, self.use_subunits)
+
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:flash"
         self._attr_available = False
         self._update_listeners = []
-        
+
         _LOGGER.info(f"Initialized sensor: {self._attr_name} (ID: {self._attr_unique_id})")
 
     async def async_added_to_hass(self):
@@ -366,7 +360,7 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
     async def async_will_remove_from_hass(self):
         """When entity will be removed from hass."""
         await super().async_will_remove_from_hass()
-        
+
         for remover in self._update_listeners:
             remover()
         self._update_listeners = []
@@ -381,45 +375,45 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         """Return if entity is available."""
         if not self.coordinator.last_update_success:
             return False
-        
+
         if not self.coordinator.data:
             return False
-        
+
         if self._home_id == "pending" and self.coordinator.data:
             first_home_id = list(self.coordinator.data.keys())[0]
             self._home_id = first_home_id
             self._attr_unique_id = f"{first_home_id}_electricity_price"
             _LOGGER.info(f"Updated home_id from pending to {first_home_id}")
-        
+
         return self._home_id in self.coordinator.data
 
     def _get_current_price_point(self):
         """Get current price point data."""
         if not self.available:
             return None
-        
+
         now = dt_util.now()
         today_prices = self.coordinator.data[self._home_id]["today"]
-        
+
         # Ingen kombinering behövs - today har alltid rätt data tack vare midnight shift!
         if not today_prices:
             return None
-        
+
         for price_point in today_prices:
             try:
                 start_time = dt_util.parse_datetime(price_point["startsAt"])
                 if not start_time:
                     continue
-                    
+
                 interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
                 end_time = start_time + timedelta(minutes=interval)
-                
+
                 if start_time <= now < end_time:
                     return price_point
             except (KeyError, ValueError, TypeError) as err:
                 _LOGGER.error(f"Error parsing price point: {err}")
                 continue
-        
+
         return None
 
     @property
@@ -427,10 +421,7 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         """Return the current total price."""
         price_point = self._get_current_price_point()
         if price_point:
-            total = price_point.get("total", 0)
-            if self.use_subunits:
-                return round(total * 100, 2)
-            return round(total, 4)
+            return format_price_value(price_point.get("total", 0), self.use_subunits)
         return None
 
     @property
@@ -466,42 +457,45 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
                 "today": {"prices": [], "count": 0},
                 "tomorrow": {"prices": [], "count": 0},
             }
-        
+
         today_prices = self.coordinator.data[self._home_id]["today"]
         tomorrow_prices = self.coordinator.data[self._home_id]["tomorrow"]
-        
+
         current_price_point = self._get_current_price_point()
-        
-        def format_price(val):
-            """Format price based on subunit setting."""
-            if val is None:
-                return None
-            return round(val * 100, 2) if self.use_subunits else round(val, 4)
-        
+
         def calculate_stats(prices, field):
             """Calculate min/max/avg for a specific field."""
             values = [p.get(field, 0) for p in prices if field in p]
             if values:
                 return {
-                    "min": format_price(min(values)),
-                    "max": format_price(max(values)),
-                    "avg": format_price(sum(values) / len(values)),
+                    "min": format_price_value(min(values), self.use_subunits),
+                    "max": format_price_value(max(values), self.use_subunits),
+                    "avg": format_price_value(sum(values) / len(values), self.use_subunits),
                 }
             return {}
-            
+
+        # Bygg data för ha-price-timeline-card
+        timeline_data = []
+        for p in today_prices + tomorrow_prices:
+            timeline_data.append({
+                "start_time": p.get("startsAt"),
+                "price_per_kwh": format_price_value(p.get("total", 0), self.use_subunits)
+            })
+
         current_total = current_price_point.get("total") if current_price_point else None
         current_energy = current_price_point.get("energy") if current_price_point else None
         current_tax = current_price_point.get("tax") if current_price_point else None
-        
+
         attrs = {
-            "current_total": format_price(current_total),
-            "current_energy": format_price(current_energy),
-            "current_tax": format_price(current_tax),
+            "current_total": format_price_value(current_total, self.use_subunits),
+            "current_energy": format_price_value(current_energy, self.use_subunits),
+            "current_tax": format_price_value(current_tax, self.use_subunits),
             "current_level": current_price_point.get("level", "UNKNOWN") if current_price_point else "UNKNOWN",
             "current_starts_at": current_price_point.get("startsAt") if current_price_point else None,
             "currency": self._currency,
             "resolution": self.coordinator.resolution,
             "use_subunits": self.use_subunits,
+            "timeline_data": timeline_data,
             "today": {
                 "prices": today_prices,
                 "count": len(today_prices),
@@ -513,24 +507,7 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
                 "count": len(tomorrow_prices),
                 "total": calculate_stats(tomorrow_prices, "total"),
                 "energy": calculate_stats(tomorrow_prices, "energy"),
-            },
+            }
         }
-        
-        if current_price_point:
-            attrs.update({
-                "current_total": round(current_price_point.get("total", 0), 4),
-                "current_energy": round(current_price_point.get("energy", 0), 4),
-                "current_tax": round(current_price_point.get("tax", 0), 4),
-                "current_level": current_price_point.get("level", "UNKNOWN"),
-                "current_starts_at": current_price_point.get("startsAt"),
-            })
-        else:
-            attrs.update({
-                "current_total": None,
-                "current_energy": None,
-                "current_tax": None,
-                "current_level": "UNKNOWN",
-                "current_starts_at": None,
-            })
-        
+
         return attrs
