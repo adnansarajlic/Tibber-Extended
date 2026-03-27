@@ -9,7 +9,10 @@
           "home_name": "Home Name",
           "resolution": "Price Resolution",
           "currency": "Currency",
-          "update_times": "Update Times (HH:MM, comma separated)"
+          "update_times": "Update Times (HH:MM, comma separated)",
+          "best_price_target_hours": "Target hours for \"Best Price\" (N-hours)",
+          "peak_price_target_hours": "Target hours for \"Peak Price\" (N-hours)",
+          "use_subunits": "Show prices in subunits (e.g. cents instead of euros)"
         }
       }
     },
@@ -33,7 +36,10 @@
           "home_name": "Home Name",
           "resolution": "Price Resolution",
           "currency": "Currency",
-          "update_times": "Update Times (HH:MM, comma separated)"
+          "update_times": "Update Times (HH:MM, comma separated)",
+          "best_price_target_hours": "Target hours for \"Best Price\" (N-hours)",
+          "peak_price_target_hours": "Target hours for \"Peak Price\" (N-hours)",
+          "use_subunits": "Show prices in subunits (e.g. cents instead of euros)"
         }
       }
     }

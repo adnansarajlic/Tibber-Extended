@@ -9,7 +9,10 @@
           "home_name": "Hemnamn",
           "resolution": "Prisupplösning",
           "currency": "Valuta",
-          "update_times": "Uppdateringstider (HH:MM, separerade med komma)"
+          "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
+          "best_price_target_hours": "Antal timmar för \"Billigast pris\" (N-timmar)",
+          "peak_price_target_hours": "Antal timmar för \"Dyrast pris\" (N-timmar)",
+          "use_subunits": "Visa priser i underenheter (t.ex. öre istället för kr)"
         }
       }
     },
@@ -33,7 +36,10 @@
           "home_name": "Hemnamn",
           "resolution": "Prisupplösning",
           "currency": "Valuta",
-          "update_times": "Uppdateringstider (HH:MM, separerade med komma)"
+          "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
+          "best_price_target_hours": "Antal timmar för \"Billigast pris\" (N-timmar)",
+          "peak_price_target_hours": "Antal timmar för \"Dyrast pris\" (N-timmar)",
+          "use_subunits": "Visa priser i underenheter (t.ex. öre istället för kr)"
         }
       }
     }
