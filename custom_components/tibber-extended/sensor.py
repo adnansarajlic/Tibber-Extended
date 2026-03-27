@@ -1,13 +1,15 @@
 """Sensor platform for Tibber Extended."""
-import logging
-from datetime import timedelta, time
-import aiohttp
 import asyncio
-import time as time_mod
+import logging
+import random
+from datetime import time, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+import aiohttp
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -18,14 +20,14 @@ from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DOMAIN,
     CONF_ACCESS_TOKEN,
+    CONF_CURRENCY,
+    CONF_HOME_NAME,
     CONF_RESOLUTION,
     CONF_UPDATE_TIMES,
-    CONF_HOME_NAME,
-    CONF_CURRENCY,
-    DEFAULT_UPDATE_TIMES,
     DEFAULT_CURRENCY,
+    DEFAULT_UPDATE_TIMES,
+    DOMAIN,
     TIBBER_API_URL,
 )
 from .utils import format_price_value
@@ -77,6 +79,8 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         self.update_times = entry.data.get(CONF_UPDATE_TIMES, DEFAULT_UPDATE_TIMES)
         self.entry = entry
         self._last_midnight_shift = None  # Håll koll på när vi senast flyttade data
+        self._force_update = False  # Flagga för att tvinga fram API-anrop (bypass cache)
+        self._home_timezones = {}  # Tidszon per hem, hämtas från API
 
         # Konvertera update_times till time-objekt
         self.update_times_parsed = []
@@ -86,12 +90,6 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                 self.update_times_parsed.append(time(hour=hour, minute=minute))
             except ValueError:
                 _LOGGER.error(f"Invalid time format: {time_str}")
-
-        # Beräkna uppdateringsintervall för sensorn baserat på resolution
-        if self.resolution == "QUARTER_HOURLY":
-            self.sensor_update_interval = timedelta(minutes=15)
-        else:  # HOURLY
-            self.sensor_update_interval = timedelta(hours=1)
 
         super().__init__(
             hass,
@@ -127,57 +125,78 @@ class TibberDataCoordinator(DataUpdateCoordinator):
 
     async def _handle_time_trigger(self, now):
         """Handle time-based update trigger."""
-        _LOGGER.info(f"Time trigger fired at {now}, fetching Tibber data")
+        # Lägg till korta slumpmässiga fördröjningar (jitter) för att undvika rate limiting
+        delay = random.uniform(1, 60)
+        _LOGGER.info(
+            f"Time trigger fired at {now}, waiting {delay:.1f}s jitter before fetching Tibber data"
+        )
+        await asyncio.sleep(delay)
         await self.async_request_refresh()
 
     async def _handle_midnight_shift(self, now):
         """Shift tomorrow prices to today at midnight."""
         current_date = now.date()
 
-        # Kontrollera så vi inte kör flera gånger samma natt
         if self._last_midnight_shift == current_date:
             _LOGGER.debug("Midnight shift already performed today")
             return
-
-        _LOGGER.info(f"Midnight shift triggered at {now}")
 
         if not self.data:
             _LOGGER.warning("No data to shift at midnight")
             return
 
-        # Flytta tomorrow → today för alla hem
         for home_id in self.data.keys():
             tomorrow_prices = self.data[home_id].get("tomorrow", [])
-
             if tomorrow_prices:
-                _LOGGER.info(
-                    f"Shifting {len(tomorrow_prices)} prices from tomorrow to today "
-                    f"for home {home_id}"
-                )
-
-                # Flytta morgondagens priser till idag
+                _LOGGER.info(f"Shifting prices for home {home_id}")
                 self.data[home_id]["today"] = tomorrow_prices
-                # Töm morgondagens priser
                 self.data[home_id]["tomorrow"] = []
-            else:
-                _LOGGER.warning(
-                    f"No tomorrow prices available to shift for home {home_id}"
-                )
 
-        # Markera att vi gjort shiften
         self._last_midnight_shift = current_date
-
-        # Trigga uppdatering av alla sensorer
         self.async_set_updated_data(self.data)
-        _LOGGER.info("Midnight shift completed, sensors updated")
+        _LOGGER.info("Midnight shift completed")
+
+    def _now_in_home_tz(self, home_id=None):
+        """Get current time in the home's timezone."""
+        tz_name = None
+        if home_id:
+            tz_name = self._home_timezones.get(home_id)
+        elif self._home_timezones:
+            tz_name = next(iter(self._home_timezones.values()))
+
+        if tz_name:
+            try:
+                return dt_util.now().astimezone(ZoneInfo(tz_name))
+            except (ZoneInfoNotFoundError, Exception) as err:
+                _LOGGER.warning(f"Invalid timezone '{tz_name}', falling back to local: {err}")
+        return dt_util.now()
 
     async def _async_update_data(self):
         """Fetch data from Tibber API."""
-        _LOGGER.debug(f"Fetching data with resolution: {self.resolution}")
-
-        # Bara hämta morgondagens priser efter kl 12:45 för att undvika 504 Timeout på stora förfrågningar
-        now_time = dt_util.now().time()
+        now = self._now_in_home_tz()
+        now_time = now.time()
         fetch_tomorrow = now_time >= time(12, 45)
+
+        # SMART CACHING
+        if self.data and not self._force_update:
+            all_homes_have_data = True
+            for home_id in self.data:
+                home_data = self.data[home_id]
+                if not home_data.get("today"):
+                    all_homes_have_data = False
+                    break
+                if fetch_tomorrow and not home_data.get("tomorrow"):
+                    all_homes_have_data = False
+                    break
+
+            if all_homes_have_data:
+                _LOGGER.debug("Smart Caching: Already have required price data")
+                return self.data
+
+        # Återställ flaggan inför anropet
+        self._force_update = False
+
+        _LOGGER.debug(f"Fetching data (tomorrow: {fetch_tomorrow})")
 
         tomorrow_query = """
                             tomorrow {
@@ -194,6 +213,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                 homes {
                     id
                     appNickname
+                    timeZone
                     currentSubscription {
                         priceInfo(resolution: %s) {
                             today {
@@ -213,105 +233,87 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
+            "User-Agent": "HomeAssistant/Tibber-Extended (v1.1.2)",
         }
 
-        max_retries = 2
-        request_start_time = time_mod.time()
+        max_attempts = 3
+        session = async_get_clientsession(self.hass)
 
-        for attempt in range(max_retries):
+        for attempt in range(max_attempts):
             try:
-                _LOGGER.debug(f"Starting API request (Attempt {attempt + 1}/{max_retries})")
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        TIBBER_API_URL,
-                        json={"query": query},
-                        headers=headers,
-                        timeout=aiohttp.ClientTimeout(total=45),
-                    ) as response:
-                        if response.status != 200:
-                            if response.status == 504 and attempt < max_retries - 1:
-                                _LOGGER.warning(f"504 Gateway Timeout from Tibber API (Attempt {attempt + 1}/{max_retries}), retrying...")
-                                await asyncio.sleep(2)
-                                continue
-                            raise UpdateFailed(f"API error: {response.status} (Attempt {attempt + 1})")
+                async with session.post(
+                    TIBBER_API_URL,
+                    json={"query": query},
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=45),
+                ) as response:
+                    if response.status == 429:
+                        retry_after = int(response.headers.get("Retry-After", 60))
+                        _LOGGER.warning(f"Rate limited (429). Waiting {retry_after}s.")
+                        if attempt < max_attempts - 1:
+                            await asyncio.sleep(retry_after)
+                            continue
+                        raise UpdateFailed("Rate limited by Tibber")
 
-                        elapsed = round(time_mod.time() - request_start_time, 2)
-                        _LOGGER.debug(f"API response received in {elapsed}s")
+                    if response.status != 200:
+                        if response.status in [500, 502, 503, 504] and attempt < max_attempts - 1:
+                            wait_time = (2 ** attempt) + random.uniform(0.1, 1.0)
+                            _LOGGER.warning(f"Server error {response.status}. Retry {attempt+1} in {wait_time:.1f}s")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        raise UpdateFailed(f"API error: {response.status}")
 
-                        data = await response.json()
+                    data = await response.json()
+                    if "errors" in data:
+                        error_msg = data['errors'][0].get('message', 'Unknown error')
+                        _LOGGER.error(f"GraphQL error: {error_msg}")
+                        raise UpdateFailed(f"GraphQL error: {error_msg}")
 
-                        if "errors" in data:
-                            error_msg = data['errors'][0].get('message', 'Unknown error')
-                            _LOGGER.error(f"GraphQL error: {error_msg}")
-                            raise UpdateFailed(f"GraphQL error: {error_msg}")
+                    homes_data = {}
+                    viewer_data = data.get("data", {}).get("viewer", {})
+                    homes = viewer_data.get("homes", [])
 
-                        homes_data = {}
-                        viewer_data = data.get("data", {}).get("viewer", {})
-                        homes = viewer_data.get("homes", [])
+                    for home in homes:
+                        home_id = home["id"]
+                        sub = home.get("currentSubscription")
+                        if not sub:
+                            continue
 
-                        if not homes:
-                            _LOGGER.warning("No homes found in Tibber account")
-                            return homes_data
+                        # Spara tidszon från API
+                        home_tz = home.get("timeZone")
+                        if home_tz:
+                            self._home_timezones[home_id] = home_tz
+                            _LOGGER.debug(f"Home {home_id} timezone: {home_tz}")
 
-                        for home in homes:
-                            home_id = home["id"]
-                            subscription = home.get("currentSubscription")
+                        price_info = sub.get("priceInfo", {})
+                        existing_tomorrow = []
+                        if self.data and home_id in self.data:
+                            existing_tomorrow = self.data[home_id].get("tomorrow", [])
 
-                            if not subscription:
-                                _LOGGER.warning(f"No subscription found for home {home_id}")
-                                continue
+                        homes_data[home_id] = {
+                            "name": home.get("appNickname", "Home"),
+                            "today": price_info.get("today", []),
+                            "tomorrow": price_info.get("tomorrow", existing_tomorrow),
+                        }
 
-                            price_info = subscription.get("priceInfo", {})
+                    _LOGGER.info(f"Fetched Tibber data for {len(homes_data)} home(s)")
+                    return homes_data
 
-                            # Hämta befintlig tomorrow data om vi har någon och inte hämtar ny
-                            existing_tomorrow = []
-                            if self.data and home_id in self.data:
-                                existing_tomorrow = self.data[home_id].get("tomorrow", [])
-
-                            homes_data[home_id] = {
-                                "name": home.get("appNickname", "Home"),
-                                "today": price_info.get("today", []),
-                                "tomorrow": price_info.get("tomorrow", existing_tomorrow),
-                            }
-
-                            _LOGGER.debug(
-                                f"Home {home_id}: {len(homes_data[home_id]['today'])} today prices, "
-                                f"{len(homes_data[home_id]['tomorrow'])} tomorrow prices"
-                            )
-
-                        _LOGGER.info(
-                            f"Successfully fetched data for {len(homes_data)} home(s) "
-                            f"in {elapsed}s (Tomorrow fetched: {fetch_tomorrow})"
-                        )
-                        return homes_data
-
-            except asyncio.TimeoutError as err:
-                if attempt < max_retries - 1:
-                    _LOGGER.warning("Timeout from Tibber API, retrying...")
-                    await asyncio.sleep(2)
+            except asyncio.TimeoutError:
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(2 ** attempt)
                     continue
-                _LOGGER.error(f"Timeout fetching data: {err}")
-                raise UpdateFailed(f"Timeout fetching data: {err}")
-            except aiohttp.ClientError as err:
-                if attempt < max_retries - 1:
-                    _LOGGER.warning("Network error, retrying...")
-                    await asyncio.sleep(2)
-                    continue
-                _LOGGER.error(f"Network error: {err}")
-                raise UpdateFailed(f"Error fetching data: {err}")
-            except KeyError as err:
-                _LOGGER.error(f"Unexpected API response structure: {err}")
-                raise UpdateFailed(f"Invalid API response: {err}")
+                raise UpdateFailed("Timeout from Tibber API")
             except Exception as err:
                 _LOGGER.error(f"Unexpected error: {err}")
-                raise UpdateFailed(f"Unexpected error: {err}")
+                raise UpdateFailed(f"Error: {err}")
 
 
 class TibberPriceSensor(CoordinatorEntity, SensorEntity):
     """Unified sensor for Tibber electricity prices."""
 
     def __init__(self, coordinator, home_id, home_name, currency):
-        """Initialize the sensor."""
+        """Initialize."""
         super().__init__(coordinator)
         self._home_id = home_id
         self._home_name = home_name
@@ -319,196 +321,138 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = f"{home_name} Electricity Price"
         self._attr_unique_id = f"{home_id}_electricity_price"
 
-        # Läs av inställningen för underenheter (öre/ct) från options eller data
         self.use_subunits = coordinator.entry.options.get(
             "use_subunits", coordinator.entry.data.get("use_subunits", False)
         )
 
         from .utils import get_unit_label
         self._attr_native_unit_of_measurement = get_unit_label(currency, self.use_subunits)
-
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:flash"
-        self._attr_available = False
         self._update_listeners = []
 
-        _LOGGER.info(f"Initialized sensor: {self._attr_name} (ID: {self._attr_unique_id})")
-
     async def async_added_to_hass(self):
-        """When entity is added to hass."""
+        """When added."""
         await super().async_added_to_hass()
-
-        # Schedule updates to align with the clock
-        if self.coordinator.resolution == "QUARTER_HOURLY":
-            minutes = [0, 15, 30, 45]
-            _LOGGER.debug(
-                f"Scheduling state updates at minutes {minutes} for {self._attr_name}"
-            )
-        else:  # HOURLY
-            minutes = [0]
-            _LOGGER.debug(
-                f"Scheduling state updates at minute 0 for {self._attr_name}"
-            )
-
+        minutes = [0, 15, 30, 45] if self.coordinator.resolution == "QUARTER_HOURLY" else [0]
         for minute in minutes:
             self._update_listeners.append(
-                async_track_time_change(
-                    self.hass, self._update_state, minute=minute, second=1
-                )
+                async_track_time_change(self.hass, self._update_state, minute=minute, second=1)
             )
 
     async def async_will_remove_from_hass(self):
-        """When entity will be removed from hass."""
+        """When removed."""
         await super().async_will_remove_from_hass()
-
         for remover in self._update_listeners:
             remover()
         self._update_listeners = []
 
     async def _update_state(self, now=None):
-        """Force sensor state update."""
+        """Update."""
         self.async_write_ha_state()
-        _LOGGER.debug(f"State updated for {self._attr_name}")
 
     @property
     def available(self) -> bool:
-        """Return if entity is available."""
-        if not self.coordinator.last_update_success:
+        """Return availability."""
+        if not self.coordinator.last_update_success or not self.coordinator.data:
             return False
-
-        if not self.coordinator.data:
-            return False
-
         if self._home_id == "pending" and self.coordinator.data:
-            first_home_id = list(self.coordinator.data.keys())[0]
-            self._home_id = first_home_id
-            self._attr_unique_id = f"{first_home_id}_electricity_price"
-            _LOGGER.info(f"Updated home_id from pending to {first_home_id}")
-
+            self._home_id = list(self.coordinator.data.keys())[0]
+            self._attr_unique_id = f"{self._home_id}_electricity_price"
         return self._home_id in self.coordinator.data
 
     def _get_current_price_point(self):
-        """Get current price point data."""
+        """Get current data using home timezone."""
         if not self.available:
             return None
-
-        now = dt_util.now()
+        now = self.coordinator._now_in_home_tz(self._home_id)
         today_prices = self.coordinator.data[self._home_id]["today"]
-
-        # Ingen kombinering behövs - today har alltid rätt data tack vare midnight shift!
-        if not today_prices:
-            return None
-
-        for price_point in today_prices:
-            try:
-                start_time = dt_util.parse_datetime(price_point["startsAt"])
-                if not start_time:
-                    continue
-
-                interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
-                end_time = start_time + timedelta(minutes=interval)
-
-                if start_time <= now < end_time:
-                    return price_point
-            except (KeyError, ValueError, TypeError) as err:
-                _LOGGER.error(f"Error parsing price point: {err}")
+        for p in today_prices:
+            st = dt_util.parse_datetime(p["startsAt"])
+            if not st:
                 continue
-
+            # Konvertera till hemmets tidszon för korrekt jämförelse
+            home_tz_name = self.coordinator._home_timezones.get(self._home_id)
+            if home_tz_name:
+                try:
+                    st = st.astimezone(ZoneInfo(home_tz_name))
+                except (ZoneInfoNotFoundError, Exception):
+                    pass
+            interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
+            if st <= now < st + timedelta(minutes=interval):
+                return p
         return None
 
     @property
     def native_value(self):
-        """Return the current total price."""
-        price_point = self._get_current_price_point()
-        if price_point:
-            return format_price_value(price_point.get("total", 0), self.use_subunits)
-        return None
+        """Return value."""
+        p = self._get_current_price_point()
+        return format_price_value(p.get("total", 0), self.use_subunits) if p else None
 
     @property
     def icon(self):
-        """Return icon based on current price level."""
-        price_point = self._get_current_price_point()
-        if price_point:
-            level = price_point.get("level", "UNKNOWN")
-            if level == "VERY_CHEAP":
-                return "mdi:arrow-down-bold"
-            elif level == "CHEAP":
-                return "mdi:arrow-down"
-            elif level == "NORMAL":
-                return "mdi:minus"
-            elif level == "EXPENSIVE":
-                return "mdi:arrow-up"
-            elif level == "VERY_EXPENSIVE":
-                return "mdi:arrow-up-bold"
+        """Return icon."""
+        p = self._get_current_price_point()
+        if p:
+            level = p.get("level", "UNKNOWN")
+            mapping = {"VERY_CHEAP": "mdi:arrow-down-bold", "CHEAP": "mdi:arrow-down",
+                       "NORMAL": "mdi:minus", "EXPENSIVE": "mdi:arrow-up",
+                       "VERY_EXPENSIVE": "mdi:arrow-up-bold"}
+            return mapping.get(level, "mdi:flash")
         return "mdi:flash"
 
     @property
     def extra_state_attributes(self):
-        """Return the state attributes."""
+        """Return attributes."""
         if not self.available:
-            return {
-                "current_total": None,
-                "current_energy": None,
-                "current_tax": None,
-                "current_level": "UNKNOWN",
-                "current_starts_at": None,
-                "currency": self._currency,
-                "resolution": self.coordinator.resolution,
-                "today": {"prices": [], "count": 0},
-                "tomorrow": {"prices": [], "count": 0},
-            }
-
-        today_prices = self.coordinator.data[self._home_id]["today"]
-        tomorrow_prices = self.coordinator.data[self._home_id]["tomorrow"]
-
-        current_price_point = self._get_current_price_point()
-
-        def calculate_stats(prices, field):
-            """Calculate min/max/avg for a specific field."""
-            values = [p.get(field, 0) for p in prices if field in p]
-            if values:
-                return {
-                    "min": format_price_value(min(values), self.use_subunits),
-                    "max": format_price_value(max(values), self.use_subunits),
-                    "avg": format_price_value(sum(values) / len(values), self.use_subunits),
-                }
             return {}
 
-        # Bygg data för ha-price-timeline-card
-        timeline_data = []
-        for p in today_prices + tomorrow_prices:
-            timeline_data.append({
-                "start_time": p.get("startsAt"),
-                "price_per_kwh": format_price_value(p.get("total", 0), self.use_subunits)
-            })
+        home_data = self.coordinator.data[self._home_id]
+        today_prices = home_data["today"]
+        tomorrow_prices = home_data["tomorrow"]
+        p = self._get_current_price_point()
 
-        current_total = current_price_point.get("total") if current_price_point else None
-        current_energy = current_price_point.get("energy") if current_price_point else None
-        current_tax = current_price_point.get("tax") if current_price_point else None
+        def calc(prices, field):
+            vals = [pt.get(field, 0) for pt in prices if field in pt]
+            if not vals:
+                return {}
+            return {
+                "min": format_price_value(min(vals), self.use_subunits),
+                "max": format_price_value(max(vals), self.use_subunits),
+                "avg": format_price_value(sum(vals) / len(vals), self.use_subunits),
+            }
 
-        attrs = {
+        current_total = p.get("total") if p else None
+        current_energy = p.get("energy") if p else None
+        current_tax = p.get("tax") if p else None
+
+        data = [
+            {
+                "start_time": pt["startsAt"],
+                "price_per_kwh": format_price_value(pt["total"], self.use_subunits),
+            }
+            for pt in today_prices + tomorrow_prices
+        ]
+
+        return {
             "current_total": format_price_value(current_total, self.use_subunits),
             "current_energy": format_price_value(current_energy, self.use_subunits),
             "current_tax": format_price_value(current_tax, self.use_subunits),
-            "current_level": current_price_point.get("level", "UNKNOWN") if current_price_point else "UNKNOWN",
-            "current_starts_at": current_price_point.get("startsAt") if current_price_point else None,
+            "current_level": p.get("level", "UNKNOWN") if p else "UNKNOWN",
+            "current_starts_at": p.get("startsAt") if p else None,
             "currency": self._currency,
             "resolution": self.coordinator.resolution,
+            "home_timezone": self.coordinator._home_timezones.get(self._home_id, "unknown"),
             "use_subunits": self.use_subunits,
-            "data": timeline_data,
-            "timeline_data": timeline_data,
+            "data": data,
             "today": {
                 "prices": today_prices,
-                "count": len(today_prices),
-                "total": calculate_stats(today_prices, "total"),
-                "energy": calculate_stats(today_prices, "energy"),
+                "total": calc(today_prices, "total"),
+                "energy": calc(today_prices, "energy"),
             },
             "tomorrow": {
                 "prices": tomorrow_prices,
-                "count": len(tomorrow_prices),
-                "total": calculate_stats(tomorrow_prices, "total"),
-                "energy": calculate_stats(tomorrow_prices, "energy"),
-            }
+                "total": calc(tomorrow_prices, "total"),
+                "energy": calc(tomorrow_prices, "energy"),
+            },
         }
-
-        return attrs

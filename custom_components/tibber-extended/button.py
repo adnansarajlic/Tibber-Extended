@@ -41,5 +41,6 @@ class TibberRefreshButton(ButtonEntity):
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        _LOGGER.info("Manuell uppdatering av elpriser via Refresh-knapp begärd")
+        _LOGGER.info("Manuell uppdatering begärd via Refresh-knapp (Bypassar Smart Caching)")
+        self.coordinator._force_update = True
         await self.coordinator.async_request_refresh()

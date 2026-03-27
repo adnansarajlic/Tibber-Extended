@@ -17,8 +17,10 @@ En integration som hämtar elpriser och prisnivåer från Tibber's API med avanc
 - 🕐 Stöd för `QUARTER_HOURLY` (15 min) eller `HOURLY` (60 min) upplösning.
 - 🏠 Anpassningsbara hemnamn och valuta (SEK, NOK, EUR, DKK).
 - 🌍 Svenskt och engelskt språkstöd.
+- 🌍 **Robust Tidszonshantering:** Hämtar hemmets tidszon direkt från Tibber för korrekt midnattsskift oavsett var HA-servern står.
 - 🔧 Ändra inställningar live utan att installera om.
 - 📈 Automatisk beräkning av min/max/medelpris för idag och imorgon.
+- 🚀 **Optimerad Prestanda:** Smart Caching och Shared Session för minimal API-belastning och hög stabilitet vid VPN.
 
 ## 📦 Installation via HACS
 
@@ -126,6 +128,7 @@ Integrationen skapar EN sensor per hem:
   "current_starts_at": "2025-10-06T04:00:00.000+02:00",
   "currency": "SEK",
   "resolution": "QUARTER_HOURLY",
+  "home_timezone": "Europe/Stockholm",
   
   "today": {
     "count": 96,
@@ -169,6 +172,10 @@ För att ge en så stabil upplevelse som möjligt använder Tibber Extended någ
 *   **5-sekunders-shiften:** Exakt kl 23:59:55 flyttar integrationen morgondagens priser till "idag" internt. Detta gör att dina grafer och sensorer uppdateras omedelbart vid midnatt utan att behöva vänta på ett segt API-anrop.
 *   **12:45-regeln:** Integrationen hämtar endast morgondagens priser efter kl 12:45. Detta görs för att undvika "504 Gateway Timeout"-fel hos Tibber, då sökningarna blir halva storleken fram till dess att morgondagens priser faktiskt finns tillgängliga.
 *   **Retry med optimering:** Om Tibber har driftstörningar försöker vi igen med en smart algoritm för att inte överbelasta deras tjänst.
+*   **Robust Tidszonshantering:** Integrationen använder hemmets lokala tidszon från Tibber för alla beräkningar. Detta gör att "imorgon" alltid definieras korrekt utifrån din adress, oavsett om din server körs i molnet eller i en annan tidszon.
+*   **Smart Caching:** För att spara på API-anrop kollar integrationen om den redan har aktuell data innan den anropar Tibber.
+*   **Exponential Backoff & Jitter:** Vid nätverksproblem väntar vi progressivt längre. Vi sprider även ut anropen med slumpmässig fördröjning (jitter) för att vara snälla mot Tibbers API.
+*   **Shared ClientSession:** Vi återanvänder Home Assistants globala nätverkspool för maximal stabilitet (viktigt vid VPN).
 
 ## 🤖 Automatiseringsexempel
 
