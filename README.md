@@ -94,9 +94,12 @@ Integrationen skapar två binära sensorer per hem som förenklar din automation
 ### `binary_sensor.[hem]_best_price_[N]h`
 Slås på under de **N billigaste** sammanhängande timmarna. 
 *   **Stöd för flera fönster:** Du kan ställa in flera olika spann (t.ex. `1, 3, 6`) i inställningarna för att skapa separata sensorer för olika ändamål.
+*   **Individuella tidsbegränsningar (Avancerat):** Du kan styra tidsfönster per spann genom att använda hakparenteser.
+    *   Exempel: `1, 3[22:00-06:00], 6[10:00-14:00]`
+    *   I exemplet ovan kommer 1h-sensorn följa den globala inställningen, medan 3h och 6h får sina egna unika fönster.
 *   **Automatisk städning:** Om du tar bort ett span från dina inställningar kommer den motsvarande sensorn att tas bort automatiskt från Home Assistant för att hålla listan ren.
 *   **Sömlös midnattsövergång:** Om de billigaste timmarna är kl 23:00 till 02:00 kommer sensorn vara `ON` hela tiden utan avbrott vid midnatt.
-*   **Tidsbegränsning (Valfritt):** Du kan ställa in ett tidsfönster (t.ex. 22:00–06:00) i inställningarna. Sensorn kommer då endast söka efter det billigaste priset inom det valda fönstret.
+*   **Tidsbegränsning (Global):** Du kan ställa in ett standard-tidsfönster (t.ex. 22:00–06:00) i inställningarna som gäller för alla sensorer som inte har en egen specifik begränsning.
 
 ### `binary_sensor.[hem]_peak_price`
 Slås på under de **N dyraste** timmarna. Perfekt för att stänga av tunga laster (t.ex. elvärme) när priset är som högst.

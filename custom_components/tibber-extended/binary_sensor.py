@@ -22,7 +22,7 @@ from .const import (
     CONF_PRICE_THRESHOLD,
     DEFAULT_PRICE_THRESHOLD,
 )
-from .utils import find_best_window
+from .utils import find_best_window, parse_spans
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,12 +46,11 @@ async def async_setup_entry(
     best_spans_str = entry.options.get(CONF_BEST_PRICE_SPANS, entry.data.get(CONF_BEST_PRICE_SPANS, DEFAULT_BEST_PRICE_SPANS))
     peak_target = float(entry.options.get(CONF_PEAK_PRICE_TARGET_HOURS, entry.data.get(CONF_PEAK_PRICE_TARGET_HOURS, DEFAULT_PEAK_PRICE_TARGET_HOURS)))
 
-    # Tolka spans (t.ex. "1, 3, 6")
-    try:
-        best_spans = [float(s.strip()) for s in str(best_spans_str).split(",") if s.strip()]
-    except ValueError:
+    # Tolka spans (t.ex. "1, 3[22:00-06:00], 6")
+    best_spans = parse_spans(best_spans_str)
+    if not best_spans:
         _LOGGER.error(f"Ogiltigt format för best_price_spans: {best_spans_str}, använder default")
-        best_spans = [float(DEFAULT_BEST_PRICE_SPANS)]
+        best_spans = parse_spans(DEFAULT_BEST_PRICE_SPANS)
 
     entities = []
 
@@ -63,10 +62,10 @@ async def async_setup_entry(
             _LOGGER.info(f"Creating binary sensors for home: {home_id}")
 
             # Skapa en sensor för varje best-span
-            for span in best_spans:
+            for span, span_start, span_end in best_spans:
                 entities.append(
                     TibberTargetHoursBinarySensor(
-                        coordinator, home_id, home_name, "best", span, resolution
+                        coordinator, home_id, home_name, "best", span, resolution, span_start, span_end
                     )
                 )
 
@@ -88,7 +87,7 @@ async def async_setup_entry(
     if coordinator.data:
         expected_ids = set()
         for home_id in coordinator.data:
-            for span in best_spans:
+            for span, _, _ in best_spans:
                 expected_ids.add(f"tibber_extended_{home_id}_best_{span}h_price")
             expected_ids.add(f"tibber_extended_{home_id}_peak_price")
             expected_ids.add(f"tibber_extended_{home_id}_price_threshold")
@@ -108,7 +107,7 @@ async def async_setup_entry(
 class TibberTargetHoursBinarySensor(BinarySensorEntity):
     """Binary sensor for cheapest/most expensive consecutive hours."""
 
-    def __init__(self, coordinator, home_id, home_name, sensor_type, target_hours, resolution):
+    def __init__(self, coordinator, home_id, home_name, sensor_type, target_hours, resolution, restrict_start=None, restrict_end=None):
         """Initialize the binary sensor."""
         self.coordinator = coordinator
         self.home_id = home_id
@@ -116,13 +115,17 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
         self.target_hours = float(target_hours)
         self.resolution = resolution
 
-        # Läs av optional time restrictions
-        self.restrict_start = coordinator.entry.options.get(
-            CONF_RESTRICT_TIME_START, coordinator.entry.data.get(CONF_RESTRICT_TIME_START, "")
-        )
-        self.restrict_end = coordinator.entry.options.get(
-            CONF_RESTRICT_TIME_END, coordinator.entry.data.get(CONF_RESTRICT_TIME_END, "")
-        )
+        # Använd span-specifik restriktion om den finns, annars global från config
+        if restrict_start and restrict_end:
+            self.restrict_start = restrict_start
+            self.restrict_end = restrict_end
+        else:
+            self.restrict_start = coordinator.entry.options.get(
+                CONF_RESTRICT_TIME_START, coordinator.entry.data.get(CONF_RESTRICT_TIME_START, "")
+            )
+            self.restrict_end = coordinator.entry.options.get(
+                CONF_RESTRICT_TIME_END, coordinator.entry.data.get(CONF_RESTRICT_TIME_END, "")
+            )
 
         if sensor_type == "best":
             type_name = f"Best Price {target_hours}h"

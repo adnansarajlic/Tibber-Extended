@@ -12,6 +12,41 @@ def validate_time_format(time_str: str) -> bool:
     pattern = r'^([0-1][0-9]|2[0-3]):([0-5][0-9])$'
     return bool(re.match(pattern, time_str))
 
+def parse_spans(spans_str):
+    """
+    Parse a span string with optional time restrictions.
+    Format: "1, 3[22:00-06:00], 6[10:00-20:00]"
+    Returns a list of tuples: (span, restrict_start, restrict_end)
+    """
+    results = []
+    if not spans_str:
+        return results
+
+    items = [s.strip() for s in str(spans_str).split(",") if s.strip()]
+
+    for item in items:
+        # Match "3[22:00-06:00]" or just "3" or "1.5"
+        match = re.match(r"^([\d.]+)(?:\[([\d:]+)-([\d:]+)\])?$", item)
+        if match:
+            try:
+                span = float(match.group(1))
+                start = match.group(2)
+                end = match.group(3)
+
+                if start and end:
+                    if not validate_time_format(start) or not validate_time_format(end):
+                        _LOGGER.warning(f"Invalid time format in span: {item}")
+                        start, end = None, None
+
+                results.append((span, start, end))
+            except ValueError:
+                _LOGGER.warning(f"Invalid span value in item: {item}")
+        else:
+            _LOGGER.warning(f"Failed to parse span item: {item}")
+
+    return results
+
+
 def find_best_window(all_prices, slots_needed, sensor_type, resolution, restrict_start=None, restrict_end=None):
     """
     Find the best (cheapest or most expensive) consecutive window of prices.

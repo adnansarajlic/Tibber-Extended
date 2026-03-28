@@ -2,6 +2,18 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.1.9] - 2026-03-28
+
+### Added
+- **Individuella tidsfönster per Best Price-spann**: Nu går det att styra exakt när olika sensorer ska vara aktiva genom att använda hakparenteser i inställningarna.
+    - Exempel: `1, 3[22:00-06:00]` skapar en 1h-sensor (globalt fönster) och en 3h-sensor (begränsad till 22-06).
+- **Tydligare inställningar**: De globala fälten för tidsbegränsning är nu märkta med "(Global)" för att tydliggöra att de fungerar som standardvärden om inget annat anges för ett specifikt spann.
+
+### Changed
+- Refaktorerat `utils.py` och `binary_sensor.py` för att stödja den nya avancerade konfigurationen.
+- Utökat testsviten till 58 tester för att täcka den nya logiken.
+
+
 ## [1.1.8] - 2026-03-28
 
 ### Added

@@ -10,12 +10,11 @@
           "resolution": "Price Resolution",
           "currency": "Currency",
           "use_subunits": "Show prices in cents/subs (instead of kr/EUR)",
-          "update_times": "Update Times (HH:MM, comma separated)",
-          "best_price_target_hours": "Target hours for \"Best Price\" (N-hours)",
+          "best_price_spans": "Best price spans (hours, e.g. 1, 3, 6). Separate sensors are created automatically for each span.",
           "peak_price_target_hours": "Target hours for \"Peak Price\" (N-hours)",
           "price_threshold": "Price Threshold (kr/EUR) - sensor activates below this value",
-          "restrict_time_start": "Restrict start time (HH:MM, optional)",
-          "restrict_time_end": "Restrict end time (HH:MM, optional)"
+          "restrict_time_start": "Restrict start time (Global, HH:MM, optional)",
+          "restrict_time_end": "Restrict end time (Global, HH:MM, optional)"
         }
       }
     },
@@ -40,12 +39,11 @@
           "resolution": "Price Resolution",
           "currency": "Currency",
           "use_subunits": "Show prices in cents/subs (instead of kr/EUR)",
-          "update_times": "Update Times (HH:MM, comma separated)",
-          "best_price_target_hours": "Target hours for \"Best Price\" (N-hours)",
+          "best_price_spans": "Best price spans (hours, e.g. 1, 3, 6). Separate sensors are created automatically for each span.",
           "peak_price_target_hours": "Target hours for \"Peak Price\" (N-hours)",
           "price_threshold": "Price Threshold (kr/EUR) - sensor activates below this value",
-          "restrict_time_start": "Restrict start time (HH:MM, optional)",
-          "restrict_time_end": "Restrict end time (HH:MM, optional)"
+          "restrict_time_start": "Restrict start time (Global, HH:MM, optional)",
+          "restrict_time_end": "Restrict end time (Global, HH:MM, optional)"
         }
       }
     }
