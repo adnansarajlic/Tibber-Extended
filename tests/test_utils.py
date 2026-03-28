@@ -5,7 +5,44 @@ import os
 # Lägg till källkoden i path för att kunna importera utils trots bindestreck i mappen
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../custom_components/tibber-extended")))
 
-from utils import find_best_window, format_price_value, validate_time_format, get_unit_label
+from utils import (
+    find_best_window, 
+    format_price_value, 
+    validate_time_format, 
+    get_unit_label, 
+    parse_spans
+)
+
+
+# ============================================================
+# parse_spans
+# ============================================================
+
+class TestParseSpans:
+    """Tests for Best Price span config parsing with individual windows."""
+
+    def test_basic_spans(self):
+        assert parse_spans("1, 3, 6") == [(1.0, None, None), (3.0, None, None), (6.0, None, None)]
+
+    def test_spans_with_restrictions(self):
+        assert parse_spans("1[22:00-06:00], 3") == [(1.0, "22:00", "06:00"), (3.0, None, None)]
+        assert parse_spans("1, 3[00:00-04:00], 6[10:00-20:00]") == [
+            (1.0, None, None), 
+            (3.0, "00:00", "04:00"), 
+            (6.0, "10:00", "20:00")
+        ]
+
+    def test_float_spans(self):
+        assert parse_spans("0.5, 1.5[12:00-14:00]") == [(0.5, None, None), (1.5, "12:00", "14:00")]
+
+    def test_invalid_formats_log_warning(self):
+        # Should skip invalid items but keep valid ones
+        assert parse_spans("1, invalid, 3[abc-def], 6") == [(1.0, None, None), (6.0, None, None)]
+
+    def test_empty_string(self):
+        assert parse_spans("") == []
+        assert parse_spans(None) == []
+
 
 
 # ============================================================

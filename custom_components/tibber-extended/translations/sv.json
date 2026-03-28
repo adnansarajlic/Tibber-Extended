@@ -10,12 +10,11 @@
           "resolution": "Prisupplösning",
           "currency": "Valuta",
           "use_subunits": "Visa priser i öre/cent (istället för kr/EUR)",
-          "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
-          "best_price_target_hours": "Antal timmar för \"Billigast pris\" (N-timmar)",
+          "best_price_spans": "Billigast pris fönster (timmar, t.ex. 1, 3, 6). Separata sensorer skapas automatiskt för varje fönster.",
           "peak_price_target_hours": "Antal timmar för \"Dyrast pris\" (N-timmar)",
           "price_threshold": "Prisgräns (kr/EUR) - sensor aktiveras under detta värde",
-          "restrict_time_start": "Begränsa starttid (HH:MM, valfritt)",
-          "restrict_time_end": "Begränsa sluttid (HH:MM, valfritt)"
+          "restrict_time_start": "Begränsa starttid (Global, HH:MM, valfritt)",
+          "restrict_time_end": "Begränsa sluttid (Global, HH:MM, valfritt)"
         }
       }
     },
@@ -40,12 +39,11 @@
           "resolution": "Prisupplösning",
           "currency": "Valuta",
           "use_subunits": "Visa priser i öre/cent (istället för kr/EUR)",
-          "update_times": "Uppdateringstider (HH:MM, separerade med komma)",
-          "best_price_target_hours": "Antal timmar för \"Billigast pris\" (N-timmar)",
+          "best_price_spans": "Billigast pris fönster (timmar, t.ex. 1, 3, 6). Separata sensorer skapas automatiskt för varje fönster.",
           "peak_price_target_hours": "Antal timmar för \"Dyrast pris\" (N-timmar)",
           "price_threshold": "Prisgräns (kr/EUR) - sensor aktiveras under detta värde",
-          "restrict_time_start": "Begränsa starttid (HH:MM, valfritt)",
-          "restrict_time_end": "Begränsa sluttid (HH:MM, valfritt)"
+          "restrict_time_start": "Begränsa starttid (Global, HH:MM, valfritt)",
+          "restrict_time_end": "Begränsa sluttid (Global, HH:MM, valfritt)"
         }
       }
     }

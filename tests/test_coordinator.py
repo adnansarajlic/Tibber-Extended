@@ -325,6 +325,46 @@ class TestCoordinatorLogic:
         # Prissensorn ska vara kvar
         assert mock_ent_reg.async_remove.call_count == 1
 
+    @pytest.mark.asyncio
+    async def test_per_span_time_restriction(self):
+        """Verifiera att span-specifik restriktion prioriteras över global."""
+        from tibber_extended.binary_sensor import async_setup_entry as setup_binary
+        
+        mock_hass = MagicMock()
+        mock_entry = MagicMock()
+        mock_entry.entry_id = "test_entry"
+        # 1h använder global (20-06), 3h använder specifik (10-14)
+        mock_entry.options = {
+            "best_price_spans": "1, 3[10:00-14:00]",
+            "restrict_time_start": "20:00",
+            "restrict_time_end": "06:00"
+        }
+        mock_entry.data = {"home_name": "Test"}
+        
+        mock_coordinator = MagicMock()
+        mock_coordinator.data = {"h1": {}}
+        mock_coordinator.entry = mock_entry
+        mock_hass.data = {"tibber_extended": {mock_entry.entry_id: {"coordinator": mock_coordinator}}}
+        
+        async_add_entities = MagicMock()
+        with patch("homeassistant.helpers.entity_registry.async_get"):
+            await setup_binary(mock_hass, mock_entry, async_add_entities)
+        
+        added_entities = async_add_entities.call_args[0][0]
+        
+        # Hitta 1h och 3h sensorerna
+        s_1h = next(e for e in added_entities if "1.0h" in e.name)
+        s_3h = next(e for e in added_entities if "3.0h" in e.name)
+        
+        # 1h ska ha globala tider
+        assert s_1h.restrict_start == "20:00"
+        assert s_1h.restrict_end == "06:00"
+        
+        # 3h ska ha de specifika tiderna i fältet
+        assert s_3h.restrict_start == "10:00"
+        assert s_3h.restrict_end == "14:00"
+
+
 
 
 
