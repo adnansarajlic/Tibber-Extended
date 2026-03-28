@@ -2,6 +2,16 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.1.8] - 2026-03-28
+
+### Added
+- **Automatisk städning av Best Price-sensorer**: När man ändrar eller tar bort ett tidsspann i inställningarna (t.ex. går från `1, 3` till bara `3`) kommer den föräldralösa entiteten (`best_price 1h`) nu automatiskt att tas bort från Home Assistant. Detta håller listan över entiteter ren och snygg.
+
+### Fixed
+- **Ruff Linting**: Åtgärdat alla linting-varningar och fel för att följa Home Assistants kodstandarder.
+- **Robustare Tester**: Utökat test-sviten till 52 tester med täckning för automatisk städning.
+
+
 ## [1.1.7] - 2026-03-27
 
 ### Added

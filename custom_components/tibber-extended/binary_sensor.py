@@ -6,6 +6,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -82,6 +83,22 @@ async def async_setup_entry(
                     coordinator, home_id, home_name
                 )
             )
+
+    # Städa bort föräldralösa Best Price-sensorer (om de tagits bort från inställningarna)
+    if coordinator.data:
+        expected_ids = set()
+        for home_id in coordinator.data:
+            for span in best_spans:
+                expected_ids.add(f"tibber_extended_{home_id}_best_{span}h_price")
+            expected_ids.add(f"tibber_extended_{home_id}_peak_price")
+            expected_ids.add(f"tibber_extended_{home_id}_price_threshold")
+
+        ent_reg = er.async_get(hass)
+        for entity in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+            if entity.domain == "binary_sensor" and "_best_" in entity.unique_id:
+                if entity.unique_id not in expected_ids:
+                    _LOGGER.info(f"Removing orphaned Tibber sensor: {entity.entity_id}")
+                    ent_reg.async_remove(entity.entity_id)
 
     if entities:
         async_add_entities(entities, True)
