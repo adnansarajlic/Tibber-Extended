@@ -1,2 +1,5 @@
 /custom_components/tibber-extended/__pycache__
 /tests/__pycache__
+*.txt
+*.txt
+*.txt

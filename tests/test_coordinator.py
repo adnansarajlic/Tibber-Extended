@@ -284,6 +284,49 @@ class TestCoordinatorLogic:
         assert "Test Best Price 3.0h" in names
         assert "Test Peak Price" in names
 
+    @pytest.mark.asyncio
+    async def test_orphaned_sensor_cleanup(self):
+        """Verifiera att gamla Best Price-sensorer städas bort om de tas bort från config."""
+        from tibber_extended.binary_sensor import async_setup_entry as setup_binary
+
+        mock_hass = MagicMock()
+        mock_entry = MagicMock()
+        mock_entry.entry_id = "test_entry"
+        # Byt från 1, 3 till bara 3
+        mock_entry.options = {"best_price_spans": "3"}
+        mock_entry.data = {"home_name": "Test"}
+
+        mock_coordinator = MagicMock()
+        mock_coordinator.data = {"h1": {}}
+        mock_hass.data = {"tibber_extended": {mock_entry.entry_id: {"coordinator": mock_coordinator}}}
+
+        # Mocka entity_registry functions
+        mock_ent_reg = MagicMock()
+        # En gammal sensor som fanns i registry för 1h
+        old_entity = MagicMock()
+        old_entity.entity_id = "binary_sensor.test_best_price_1_0h"
+        old_entity.unique_id = "tibber_extended_h1_best_1.0h_price"
+        old_entity.domain = "binary_sensor"
+
+        # Tibber Price Sensor i registry för att se att den inte tas bort
+        price_entity = MagicMock()
+        price_entity.entity_id = "sensor.test_price"
+        price_entity.unique_id = "tibber_extended_h1_electricity_price"
+        price_entity.domain = "sensor"
+
+        with patch("homeassistant.helpers.entity_registry.async_get", return_value=mock_ent_reg), \
+             patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry",
+                   return_value=[old_entity, price_entity]):
+            async_add_entities = MagicMock()
+            await setup_binary(mock_hass, mock_entry, async_add_entities)
+
+        # Verifiera att async_remove anropades för 1h-sensorn
+        mock_ent_reg.async_remove.assert_called_with("binary_sensor.test_best_price_1_0h")
+        # Prissensorn ska vara kvar
+        assert mock_ent_reg.async_remove.call_count == 1
+
+
+
 
 class TestAvailability:
     """Tester för sensorernas tillgänglighetslogik."""
