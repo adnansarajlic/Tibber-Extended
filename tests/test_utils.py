@@ -1,12 +1,10 @@
 import pytest
 import sys
 import os
-from datetime import datetime, timedelta
 
 # Lägg till källkoden i path för att kunna importera utils trots bindestreck i mappen
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../custom_components/tibber-extended")))
 
-import utils
 from utils import find_best_window, format_price_value, validate_time_format, get_unit_label
 
 

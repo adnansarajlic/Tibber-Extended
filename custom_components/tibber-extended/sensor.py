@@ -24,7 +24,6 @@ from .const import (
     CONF_CURRENCY,
     CONF_HOME_NAME,
     CONF_RESOLUTION,
-    CONF_UPDATE_TIMES,
     DEFAULT_CURRENCY,
     DEFAULT_UPDATE_TIMES,
     DOMAIN,
@@ -549,12 +548,12 @@ class TibberCostConsumptionSensor(CoordinatorEntity, SensorEntity):
         self._home_id = home_id
         self._attr_name = f"{home_name} Monthly Cost"
         self._attr_unique_id = f"{home_id}_monthly_cost"
-        
+
         currency = coordinator.entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
         from .utils import get_unit_label
         # Vi använder basenheten (kr/EUR) för total månadskostnad, oavsett subunit-inställning
         self._attr_native_unit_of_measurement = get_unit_label(currency, False).split("/")[0]
-        
+
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_icon = "mdi:cash"
 

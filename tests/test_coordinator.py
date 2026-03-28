@@ -87,8 +87,8 @@ integration_path = os.path.abspath(
 if integration_path not in sys.path:
     sys.path.insert(0, integration_path)
 
-import const as mock_const
-import utils as mock_utils
+import const as mock_const  # noqa: E402
+import utils as mock_utils  # noqa: E402
 
 te = types.ModuleType("tibber_extended")
 te.const = mock_const
@@ -97,7 +97,7 @@ sys.modules["tibber_extended"] = te
 sys.modules["tibber_extended.const"] = mock_const
 sys.modules["tibber_extended.utils"] = mock_utils
 
-import importlib.util
+import importlib.util  # noqa: E402
 
 spec_sensor = importlib.util.spec_from_file_location(
     "tibber_extended.sensor", os.path.join(integration_path, "sensor.py")
@@ -113,13 +113,13 @@ binary_mod = importlib.util.module_from_spec(spec_binary)
 sys.modules["tibber_extended.binary_sensor"] = binary_mod
 spec_binary.loader.exec_module(binary_mod)
 
-from tibber_extended.sensor import (
+from tibber_extended.sensor import (  # noqa: E402
     TibberDataCoordinator,
     TibberDetailsSensor,
     TibberEnergyConsumptionSensor,
     TibberCostConsumptionSensor,
 )
-from tibber_extended.binary_sensor import TibberThresholdBinarySensor
+from tibber_extended.binary_sensor import TibberThresholdBinarySensor  # noqa: E402
 
 
 # =============================================================
@@ -164,7 +164,7 @@ class TestSensors:
         energy_sensor = TibberEnergyConsumptionSensor(mock_coordinator, "h1", "Test Hem")
         cost_sensor = TibberCostConsumptionSensor(mock_coordinator, "h1", "Test Hem")
         mock_coordinator.last_update_success = True
-        
+
         assert energy_sensor.native_value == 10.0
         assert cost_sensor.native_value == 20.0
         assert cost_sensor.native_unit_of_measurement == "SEK"
@@ -222,12 +222,12 @@ class TestCoordinatorLogic:
         mock_hass = MagicMock()
         mock_entry = MagicMock()
         mock_entry.data = {"access_token": "test", "currency": "SEK"}
-        
+
         with patch("tibber_extended.sensor.async_track_time_change") as m_track:
-            coordinator = TibberDataCoordinator(mock_hass, mock_entry)
+            TibberDataCoordinator(mock_hass, mock_entry)
             # Vi förväntar oss 3 anrop för tiderna, plus 1 för midnattsskiftet = 4 totalt
             assert m_track.call_count == 4
-            
+
             # Kolla specifika timmar för ordinarie uppdateringar
             scheduled_hours = [call.kwargs.get("hour") for call in m_track.call_args_list if "hour" in call.kwargs]
             assert 13 in scheduled_hours
@@ -253,31 +253,32 @@ class TestCoordinatorLogic:
                 # Detta bör trigga ett API-anrop (inte cacha)
                 try:
                     await coordinator._async_update_data()
-                except: pass # Vi bryr oss bara om anropet skedde
+                except Exception:
+                    pass  # Vi bryr oss bara om anropet skedde
                 m_sess.assert_called()
 
     @pytest.mark.asyncio
     async def test_multi_span_binary_sensors(self):
         """Verifiera att flera spans skapar flera sensorer."""
         from tibber_extended.binary_sensor import async_setup_entry as setup_binary
-        
+
         mock_hass = MagicMock()
         mock_entry = MagicMock()
         # Två spans: 1h och 3h
         mock_entry.options = {"best_price_spans": "1, 3"}
         mock_entry.data = {"home_name": "Test"}
-        
+
         mock_coordinator = MagicMock()
         mock_coordinator.data = {"h1": {}}
         mock_hass.data = {"tibber_extended": {mock_entry.entry_id: {"coordinator": mock_coordinator}}}
-        
+
         async_add_entities = MagicMock()
         await setup_binary(mock_hass, mock_entry, async_add_entities)
-        
+
         # Vi förväntar oss: best_1h, best_3h, peak, threshold = 4 sensorer totalt
         added_entities = async_add_entities.call_args[0][0]
         assert len(added_entities) == 4
-        
+
         names = [e.name for e in added_entities]
         assert "Test Best Price 1.0h" in names
         assert "Test Best Price 3.0h" in names
@@ -292,13 +293,13 @@ class TestAvailability:
         coordinator = MagicMock()
         coordinator.data = {} # Ingen data alls
         coordinator.last_update_success = True
-        
+
         # Vi behöver importera TibberPriceSensor om den inte finns i sys.modules
         from tibber_extended.sensor import TibberPriceSensor
-        
+
         price_sensor = TibberPriceSensor(coordinator, "h1", "Test", "SEK")
         energy_sensor = TibberEnergyConsumptionSensor(coordinator, "h1", "Test")
-        
+
         assert price_sensor.available is False
         assert energy_sensor.available is False
 
@@ -306,7 +307,7 @@ class TestAvailability:
         coordinator = MagicMock()
         coordinator.data = {"h1": {"today": [1]}}
         coordinator.last_update_success = True
-        
+
         from tibber_extended.sensor import TibberPriceSensor
         price_sensor = TibberPriceSensor(coordinator, "h1", "Test", "SEK")
         assert price_sensor.available is True
