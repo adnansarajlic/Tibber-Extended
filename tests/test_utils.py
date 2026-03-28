@@ -6,10 +6,10 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../custom_components/tibber-extended")))
 
 from utils import (
-    find_best_window, 
-    format_price_value, 
-    validate_time_format, 
-    get_unit_label, 
+    find_best_window,
+    format_price_value,
+    validate_time_format,
+    get_unit_label,
     parse_spans
 )
 
@@ -27,8 +27,8 @@ class TestParseSpans:
     def test_spans_with_restrictions(self):
         assert parse_spans("1[22:00-06:00], 3") == [(1.0, "22:00", "06:00"), (3.0, None, None)]
         assert parse_spans("1, 3[00:00-04:00], 6[10:00-20:00]") == [
-            (1.0, None, None), 
-            (3.0, "00:00", "04:00"), 
+            (1.0, None, None),
+            (3.0, "00:00", "04:00"),
             (6.0, "10:00", "20:00")
         ]
 

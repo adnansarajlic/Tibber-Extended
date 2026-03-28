@@ -21,9 +21,9 @@ def parse_spans(spans_str):
     results = []
     if not spans_str:
         return results
-        
+
     items = [s.strip() for s in str(spans_str).split(",") if s.strip()]
-    
+
     for item in items:
         # Match "3[22:00-06:00]" or just "3" or "1.5"
         match = re.match(r"^([\d.]+)(?:\[([\d:]+)-([\d:]+)\])?$", item)
@@ -32,18 +32,18 @@ def parse_spans(spans_str):
                 span = float(match.group(1))
                 start = match.group(2)
                 end = match.group(3)
-                
+
                 if start and end:
                     if not validate_time_format(start) or not validate_time_format(end):
                         _LOGGER.warning(f"Invalid time format in span: {item}")
                         start, end = None, None
-                
+
                 results.append((span, start, end))
             except ValueError:
                 _LOGGER.warning(f"Invalid span value in item: {item}")
         else:
             _LOGGER.warning(f"Failed to parse span item: {item}")
-            
+
     return results
 
 
