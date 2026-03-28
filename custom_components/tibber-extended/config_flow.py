@@ -11,19 +11,17 @@ from .const import (
     DOMAIN,
     CONF_ACCESS_TOKEN,
     CONF_RESOLUTION,
-    CONF_UPDATE_TIMES,
     CONF_HOME_NAME,
     CONF_CURRENCY,
     DEFAULT_DEMO_TOKEN,
-    DEFAULT_UPDATE_TIMES,
     DEFAULT_CURRENCY,
     RESOLUTION_OPTIONS,
     CURRENCY_OPTIONS,
     TIBBER_API_URL,
-    CONF_BEST_PRICE_TARGET_HOURS,
     CONF_PEAK_PRICE_TARGET_HOURS,
-    DEFAULT_BEST_PRICE_TARGET_HOURS,
+    CONF_BEST_PRICE_SPANS,
     DEFAULT_PEAK_PRICE_TARGET_HOURS,
+    DEFAULT_BEST_PRICE_SPANS,
     CONF_USE_SUBUNITS,
     DEFAULT_USE_SUBUNITS,
     CONF_RESTRICT_TIME_START,
@@ -33,7 +31,6 @@ from .const import (
     CONF_PRICE_THRESHOLD,
     DEFAULT_PRICE_THRESHOLD,
 )
-from .utils import validate_time_format
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,46 +53,16 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 token = DEFAULT_DEMO_TOKEN
                 user_input[CONF_ACCESS_TOKEN] = token
 
-            # Validera update_times format
-            update_times_str = user_input.get(CONF_UPDATE_TIMES, "")
-            times_list = [t.strip() for t in update_times_str.split(",") if t.strip()]
+            # Validera token
+            valid = await self._validate_token(token)
 
-            valid_times = True
-            for time_str in times_list:
-                if not validate_time_format(time_str):
-                    valid_times = False
-                    errors["base"] = "invalid_time_format"
-                    break
-
-            if valid_times:
-                # Validera restrict times
-                restrict_start = user_input.get(CONF_RESTRICT_TIME_START, "").strip()
-                restrict_end = user_input.get(CONF_RESTRICT_TIME_END, "").strip()
-
-                if restrict_start and not validate_time_format(restrict_start):
-                    valid_times = False
-                    errors["base"] = "invalid_time_format"
-                if restrict_end and not validate_time_format(restrict_end):
-                    valid_times = False
-                    errors["base"] = "invalid_time_format"
-
-            if valid_times:
-                # Validera token
-                valid = await self._validate_token(token)
-
-                if valid:
-                    # Spara times_list istället för sträng
-                    user_input[CONF_UPDATE_TIMES] = times_list if times_list else DEFAULT_UPDATE_TIMES
-
-                    return self.async_create_entry(
-                        title=user_input.get(CONF_HOME_NAME, "Tibber Extended"),
-                        data=user_input,
-                    )
-                else:
-                    errors["base"] = "invalid_token"
-
-        # Skapa default värden
-        default_times = ", ".join(DEFAULT_UPDATE_TIMES)
+            if valid:
+                return self.async_create_entry(
+                    title=user_input.get(CONF_HOME_NAME, "Tibber Extended"),
+                    data=user_input,
+                )
+            else:
+                errors["base"] = "invalid_token"
 
         data_schema = vol.Schema(
             {
@@ -119,14 +86,10 @@ class TibberExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_USE_SUBUNITS,
                     default=DEFAULT_USE_SUBUNITS,
                 ): bool,
-                vol.Required(
-                    CONF_UPDATE_TIMES,
-                    default=default_times,
-                ): str,
                 vol.Optional(
-                    CONF_BEST_PRICE_TARGET_HOURS,
-                    default=str(DEFAULT_BEST_PRICE_TARGET_HOURS),
-                ): vol.In(["0.5", "1.0", "1.5", "2.0", "3.0", "4.0", "6.0"]),
+                    CONF_BEST_PRICE_SPANS,
+                    default=DEFAULT_BEST_PRICE_SPANS,
+                ): str,
                 vol.Optional(
                     CONF_PEAK_PRICE_TARGET_HOURS,
                     default=str(DEFAULT_PEAK_PRICE_TARGET_HOURS),
@@ -209,53 +172,21 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
             if not token:
                 token = self._config_entry.data.get(CONF_ACCESS_TOKEN, DEFAULT_DEMO_TOKEN)
 
-            # Validera update_times format
-            update_times_str = user_input.get(CONF_UPDATE_TIMES, "")
-            times_list = [t.strip() for t in update_times_str.split(",") if t.strip()]
+            # Validera token
+            valid = await self._validate_token(token)
 
-            valid_times = True
-            for time_str in times_list:
-                if not validate_time_format(time_str):
-                    valid_times = False
-                    errors["base"] = "invalid_time_format"
-                    break
+            if valid:
+                user_input[CONF_ACCESS_TOKEN] = token
 
-            if valid_times:
-                # Validera restrict times
-                restrict_start = user_input.get(CONF_RESTRICT_TIME_START, "").strip()
-                restrict_end = user_input.get(CONF_RESTRICT_TIME_END, "").strip()
+                # Uppdatera config entry data
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry,
+                    data={**self._config_entry.data, **user_input}
+                )
 
-                if restrict_start and not validate_time_format(restrict_start):
-                    valid_times = False
-                    errors["base"] = "invalid_time_format"
-                if restrict_end and not validate_time_format(restrict_end):
-                    valid_times = False
-                    errors["base"] = "invalid_time_format"
-
-            if valid_times:
-                # Validera token
-                valid = await self._validate_token(token)
-
-                if valid:
-                    user_input[CONF_UPDATE_TIMES] = times_list if times_list else DEFAULT_UPDATE_TIMES
-                    user_input[CONF_ACCESS_TOKEN] = token
-
-                    # Uppdatera config entry data
-                    self.hass.config_entries.async_update_entry(
-                        self._config_entry,
-                        data={**self._config_entry.data, **user_input}
-                    )
-
-                    return self.async_create_entry(title="", data={})
-                else:
-                    errors["base"] = "invalid_token"
-
-        # Hämta nuvarande värden
-        current_times = self._config_entry.data.get(CONF_UPDATE_TIMES, DEFAULT_UPDATE_TIMES)
-        if isinstance(current_times, list):
-            current_times_str = ", ".join(current_times)
-        else:
-            current_times_str = current_times
+                return self.async_create_entry(title="", data={})
+            else:
+                errors["base"] = "invalid_token"
 
         data_schema = vol.Schema(
             {
@@ -283,14 +214,10 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                         CONF_USE_SUBUNITS, DEFAULT_USE_SUBUNITS
                     ),
                 ): bool,
-                vol.Required(
-                    CONF_UPDATE_TIMES,
-                    default=current_times_str,
-                ): str,
                 vol.Optional(
-                    CONF_BEST_PRICE_TARGET_HOURS,
-                    default=str(self._config_entry.data.get(CONF_BEST_PRICE_TARGET_HOURS, DEFAULT_BEST_PRICE_TARGET_HOURS)),
-                ): vol.In(["0.5", "1.0", "1.5", "2.0", "3.0", "4.0", "6.0"]),
+                    CONF_BEST_PRICE_SPANS,
+                    default=self._config_entry.data.get(CONF_BEST_PRICE_SPANS, DEFAULT_BEST_PRICE_SPANS),
+                ): str,
                 vol.Optional(
                     CONF_PEAK_PRICE_TARGET_HOURS,
                     default=str(self._config_entry.data.get(CONF_PEAK_PRICE_TARGET_HOURS, DEFAULT_PEAK_PRICE_TARGET_HOURS)),

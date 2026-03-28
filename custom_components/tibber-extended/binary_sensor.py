@@ -11,10 +11,10 @@ from homeassistant.util import dt as dt_util
 from .const import (
     DOMAIN,
     CONF_HOME_NAME,
-    CONF_BEST_PRICE_TARGET_HOURS,
+    CONF_BEST_PRICE_SPANS,
     CONF_PEAK_PRICE_TARGET_HOURS,
-    DEFAULT_BEST_PRICE_TARGET_HOURS,
     DEFAULT_PEAK_PRICE_TARGET_HOURS,
+    DEFAULT_BEST_PRICE_SPANS,
     CONF_RESOLUTION,
     CONF_RESTRICT_TIME_START,
     CONF_RESTRICT_TIME_END,
@@ -42,8 +42,15 @@ async def async_setup_entry(
     resolution = entry.data.get(CONF_RESOLUTION, "QUARTER_HOURLY")
 
     # Om inga values finns i options, fall back till data, annars default
-    best_target = float(entry.options.get(CONF_BEST_PRICE_TARGET_HOURS, entry.data.get(CONF_BEST_PRICE_TARGET_HOURS, DEFAULT_BEST_PRICE_TARGET_HOURS)))
+    best_spans_str = entry.options.get(CONF_BEST_PRICE_SPANS, entry.data.get(CONF_BEST_PRICE_SPANS, DEFAULT_BEST_PRICE_SPANS))
     peak_target = float(entry.options.get(CONF_PEAK_PRICE_TARGET_HOURS, entry.data.get(CONF_PEAK_PRICE_TARGET_HOURS, DEFAULT_PEAK_PRICE_TARGET_HOURS)))
+
+    # Tolka spans (t.ex. "1, 3, 6")
+    try:
+        best_spans = [float(s.strip()) for s in str(best_spans_str).split(",") if s.strip()]
+    except ValueError:
+        _LOGGER.error(f"Ogiltigt format för best_price_spans: {best_spans_str}, använder default")
+        best_spans = [float(DEFAULT_BEST_PRICE_SPANS)]
 
     entities = []
 
@@ -53,17 +60,28 @@ async def async_setup_entry(
     if coordinator.data:
         for home_id in coordinator.data:
             _LOGGER.info(f"Creating binary sensors for home: {home_id}")
-            entities.extend([
-                TibberTargetHoursBinarySensor(
-                    coordinator, home_id, home_name, "best", best_target, resolution
-                ),
+
+            # Skapa en sensor för varje best-span
+            for span in best_spans:
+                entities.append(
+                    TibberTargetHoursBinarySensor(
+                        coordinator, home_id, home_name, "best", span, resolution
+                    )
+                )
+
+            # En peak-sensor per hem (som förut)
+            entities.append(
                 TibberTargetHoursBinarySensor(
                     coordinator, home_id, home_name, "peak", peak_target, resolution
-                ),
+                )
+            )
+
+            # Tröskel-sensor
+            entities.append(
                 TibberThresholdBinarySensor(
                     coordinator, home_id, home_name
-                ),
-            ])
+                )
+            )
 
     if entities:
         async_add_entities(entities, True)
@@ -89,9 +107,14 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
             CONF_RESTRICT_TIME_END, coordinator.entry.data.get(CONF_RESTRICT_TIME_END, "")
         )
 
-        type_name = "Best Price" if sensor_type == "best" else "Peak Price"
+        if sensor_type == "best":
+            type_name = f"Best Price {target_hours}h"
+            self._attr_unique_id = f"tibber_extended_{home_id}_{sensor_type}_{target_hours}h_price"
+        else:
+            type_name = "Peak Price"
+            self._attr_unique_id = f"tibber_extended_{home_id}_{sensor_type}_price"
+
         self._attr_name = f"{home_name} {type_name}"
-        self._attr_unique_id = f"tibber_extended_{home_id}_{sensor_type}_price"
         self._attr_icon = "mdi:cash-check" if sensor_type == "best" else "mdi:cash-remove"
 
         self.period_start = None
