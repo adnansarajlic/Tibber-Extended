@@ -17,6 +17,7 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -44,6 +45,9 @@ async def async_setup_entry(
 
     # Spara koordinator så button.py kan hitta den
     hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
+
+    # Läs in cachad data från disk INNAN första uppdateringen
+    await coordinator.async_load_from_storage()
 
     # Försök hämta data första gången
     try:
@@ -106,7 +110,28 @@ class TibberDataCoordinator(DataUpdateCoordinator):
             update_interval=None,
         )
 
+        # Persistent lagring
+        self._store = Store(hass, 1, f"{DOMAIN}_{entry.entry_id}")
+
         self._setup_time_triggers()
+
+    async def async_load_from_storage(self):
+        """Load cached data from storage."""
+        try:
+            cached_data = await self._store.async_load()
+            if cached_data:
+                self.data = cached_data
+                _LOGGER.info(f"Loaded {len(cached_data)} homes from persistent storage")
+        except Exception as err:
+            _LOGGER.error(f"Failed to load data from storage: {err}")
+
+    async def async_save_to_storage(self):
+        """Save current data to storage."""
+        try:
+            await self._store.async_save(self.data)
+            _LOGGER.debug("Data saved to persistent storage")
+        except Exception as err:
+            _LOGGER.error(f"Failed to save data to storage: {err}")
 
     def _setup_time_triggers(self):
         """Setup time-based update triggers."""
@@ -199,6 +224,8 @@ class TibberDataCoordinator(DataUpdateCoordinator):
 
             if all_homes_have_data:
                 _LOGGER.debug("Smart Caching: Already have required price data")
+                # Spara till storage för säkerhets skull (vid ev. manuell ändring i minnet)
+                await self.async_save_to_storage()
                 return self.data
 
         # Återställ flaggan inför anropet
@@ -252,7 +279,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
-            "User-Agent": "HomeAssistant/Tibber-Extended (1.1.4)",
+            "User-Agent": "HomeAssistant/Tibber-Extended (1.2.0)",
         }
 
         max_attempts = 3
@@ -320,6 +347,8 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                         }
 
                     _LOGGER.info(f"Fetched Tibber data for {len(homes_data)} home(s)")
+                    self.data = homes_data
+                    await self.async_save_to_storage()
                     return homes_data
 
             except asyncio.TimeoutError:

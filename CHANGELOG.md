@@ -2,6 +2,18 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.2.0] - 2026-03-29
+
+### Added
+- **Persistent Storage**: Data hämtad från Tibber sparas nu lokalt på disken. Detta gör att integrationen kan starta snabbare och behålla historisk data utan att omedelbart behöva anropa API:et vid varje Home Assistant-omstart.
+- **State Restoration**: Beräknade tidsfönster för "Best Price" sparas nu i Home Assistants state machine och återställs vid omstart.
+- **Utökad stabilitet för sensorer**: Implementerat logik som förhindrar att ett planerat fönster "hoppar" till en annan tidpunkt när ny data kommer in, så länge det nuvarande valet fortfarande är giltigt och i framtiden.
+- **Massiv testsvit-uppdatering**: Utökat testerna från 59 till 95 st för att täcka allt från storage-logik till API-retries och sensor-stabilitet. Testerna är nu uppdelade i flera filer för bättre underhåll.
+
+### Changed
+- Refaktorerat koordinatorn för att använda Home Assistants officiella `Store`-helper för lagring.
+- Centraliserat all test-infrastruktur i `conftest.py` för stabilare och snabbare testkörningar.
+
 ## [1.1.9] - 2026-03-28
 
 ### Added
