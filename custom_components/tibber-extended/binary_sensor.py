@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.components.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -104,7 +105,7 @@ async def async_setup_entry(
         _LOGGER.info(f"Successfully setup Tibber binary sensors for {home_name}")
 
 
-class TibberTargetHoursBinarySensor(BinarySensorEntity):
+class TibberTargetHoursBinarySensor(RestoreEntity, BinarySensorEntity):
     """Binary sensor for cheapest/most expensive consecutive hours."""
 
     def __init__(self, coordinator, home_id, home_name, sensor_type, target_hours, resolution, restrict_start=None, restrict_end=None):
@@ -179,6 +180,14 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
 
     async def async_added_to_hass(self):
         """When entity is added to hass."""
+
+        # Restore state
+        if (last_state := await self.async_get_last_state()) is not None:
+            self.period_start = last_state.attributes.get("period_start")
+            self.period_end = last_state.attributes.get("period_end")
+            self.avg_price = last_state.attributes.get("avg_price_in_period")
+            _LOGGER.debug(f"Restored state for {self.entity_id}: {self.period_start}")
+
         self.async_on_remove(
             self.coordinator.async_add_listener(self._handle_coordinator_update)
         )
@@ -194,6 +203,25 @@ class TibberTargetHoursBinarySensor(BinarySensorEntity):
         data = self.coordinator.data
         if not data or self.home_id not in data:
             return
+
+        now = dt_util.now()
+
+        # Stabilitetslogik: Om vi redan har ett planerat fönster i framtiden, behåll det.
+        # Detta förhindrar att fönstret "hoppar" vid omstart eller när ny data kommer in,
+        # så länge det nuvarande valet fortfarande är giltigt.
+        force_update = getattr(self.coordinator, "_force_update", False)
+        if not force_update and self.period_start and self.period_end:
+            try:
+                from dateutil.parser import isoparse
+                p_start = isoparse(self.period_start)
+                if p_start > now:
+                    # Kontrollera om priserna för detta fönster fortfarande finns i koordinatorn
+                    all_prices = data[self.home_id].get("today", []) + data[self.home_id].get("tomorrow", [])
+                    if any(p["startsAt"] == self.period_start for p in all_prices):
+                        _LOGGER.debug(f"Stabilitet: Behåller framtida fönster {self.period_start} för {self._attr_name}")
+                        return
+            except Exception as e:
+                _LOGGER.debug(f"Kunde inte validera existerande fönster: {e}")
 
         today_prices = data[self.home_id].get("today", [])
         tomorrow_prices = data[self.home_id].get("tomorrow", [])

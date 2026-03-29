@@ -22,6 +22,7 @@ En integration som hämtar elpriser och prisnivåer från Tibber's API med avanc
 - 📈 Automatisk beräkning av min/max/medelpris för idag och imorgon.
 - ⚡ **Månadsförbrukning:** Se total kWh och kostnad separat (två olika sensorer).
 - 🏢 **Elnätsbolag:** Diagnostisk sensor som visar ditt nätbolag.
+- 💾 **Persistent Storage:** Data sparas lokalt för att överleva omstarter och minska API-anrop.
 - 🚀 **Optimerad Prestanda:** Smart Caching och Shared Session för minimal API-belastning och hög stabilitet vid VPN.
 
 ## 📦 Installation via HACS
@@ -204,6 +205,8 @@ För att ge en så stabil upplevelse som möjligt använder Tibber Extended någ
 *   **Smart Caching:** För att spara på API-anrop kollar integrationen om den redan har aktuell data innan den anropar Tibber.
 *   **Exponential Backoff & Jitter:** Vid nätverksproblem väntar vi progressivt längre. Vi sprider även ut anropen med slumpmässig fördröjning (jitter) för att vara snälla mot Tibbers API.
 *   **Shared ClientSession:** Vi återanvänder Home Assistants globala nätverkspool för maximal stabilitet (viktigt vid VPN).
+*   **Persistent Storage & Restore:** Integrationen sparar din prisdata på disken och återställer binära sensorers tillstånd vid omstart, vilket gör att systemet är redo direkt utan API-anrop.
+*   **Sensorstabilitet:** Förhindrar att automationsfönster ändras oväntat när ny data kommer in, så länge det nuvarande valet förblir giltigt.
 
 ## 🤖 Automatiseringsexempel
 
@@ -481,7 +484,7 @@ show:
 ### Tester och stabilitet
 Vi använder automatiserade enhetstester för att säkerställa att prisberäkningarna och tidsfilter alltid fungerar korrekt.
 
-*   **CI/CD:** Alla ändringar testas automatiskt via GitHub Actions på Python 3.11 och 3.12.
+*   **CI/CD:** Alla ändringar testas automatiskt via GitHub Actions på Python 3.12, 3.13 och 3.14.
 *   **Kör lokalt:** Om du vill bidra kan du köra testerna själv med `python -m pytest tests/`.
 *   **Linting:** Vi använder `Ruff` för att hålla koden ren och fri från fel.
 
