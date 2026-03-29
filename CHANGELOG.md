@@ -9,6 +9,7 @@ Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna f
 - **State Restoration**: Beräknade tidsfönster för "Best Price" sparas nu i Home Assistants state machine och återställs vid omstart.
 - **Utökad stabilitet för sensorer**: Implementerat logik som förhindrar att ett planerat fönster "hoppar" till en annan tidpunkt när ny data kommer in, så länge det nuvarande valet fortfarande är giltigt och i framtiden.
 - **Massiv testsvit-uppdatering**: Utökat testerna från 59 till 95 st för att täcka allt från storage-logik till API-retries och sensor-stabilitet. Testerna är nu uppdelade i flera filer för bättre underhåll.
+- **Moderniserad CI**: Uppdaterat GitHub Actions för att köra tester på Python 3.12, 3.13 och 3.14 för att matcha de senaste standarderna i Home Assistant Core.
 
 ### Changed
 - Refaktorerat koordinatorn för att använda Home Assistants officiella `Store`-helper för lagring.

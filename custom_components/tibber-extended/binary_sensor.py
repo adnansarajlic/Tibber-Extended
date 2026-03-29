@@ -180,8 +180,7 @@ class TibberTargetHoursBinarySensor(RestoreEntity, BinarySensorEntity):
 
     async def async_added_to_hass(self):
         """When entity is added to hass."""
-        await super().async_added_to_hass()
-        
+
         # Restore state
         if (last_state := await self.async_get_last_state()) is not None:
             self.period_start = last_state.attributes.get("period_start")
@@ -208,7 +207,7 @@ class TibberTargetHoursBinarySensor(RestoreEntity, BinarySensorEntity):
         now = dt_util.now()
 
         # Stabilitetslogik: Om vi redan har ett planerat fönster i framtiden, behåll det.
-        # Detta förhindrar att fönstret "hoppar" vid omstart eller när ny data kommer in, 
+        # Detta förhindrar att fönstret "hoppar" vid omstart eller när ny data kommer in,
         # så länge det nuvarande valet fortfarande är giltigt.
         force_update = getattr(self.coordinator, "_force_update", False)
         if not force_update and self.period_start and self.period_end:

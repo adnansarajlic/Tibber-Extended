@@ -484,7 +484,7 @@ show:
 ### Tester och stabilitet
 Vi använder automatiserade enhetstester för att säkerställa att prisberäkningarna och tidsfilter alltid fungerar korrekt.
 
-*   **CI/CD:** Alla ändringar testas automatiskt via GitHub Actions på Python 3.11 och 3.12.
+*   **CI/CD:** Alla ändringar testas automatiskt via GitHub Actions på Python 3.12, 3.13 och 3.14.
 *   **Kör lokalt:** Om du vill bidra kan du köra testerna själv med `python -m pytest tests/`.
 *   **Linting:** Vi använder `Ruff` för att hålla koden ren och fri från fel.
 
