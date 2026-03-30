@@ -2,6 +2,11 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.2.1] - 2026-03-30
+
+### Fixed
+- Åtgärdat `ModuleNotFoundError` för `RestoreEntity`. Importen flyttad från `components.restore_state` till `helpers.restore_state`.
+
 ## [1.2.0] - 2026-03-29
 
 ### Added
