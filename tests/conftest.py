@@ -80,6 +80,7 @@ sys.modules["homeassistant.helpers.update_coordinator"] = mock_ha.helpers.update
 sys.modules["homeassistant.helpers.storage"] = mock_ha.helpers.storage
 sys.modules["homeassistant.util"] = mock_ha.util
 sys.modules["homeassistant.util.dt"] = mock_ha.util.dt
+sys.modules["homeassistant.const"] = mock_ha.const
 
 mock_ha.components.sensor.SensorEntity = _SensorEntity
 mock_ha.components.sensor.SensorDeviceClass = MagicMock()
@@ -89,6 +90,7 @@ mock_ha.helpers.update_coordinator.CoordinatorEntity = _CoordinatorEntity
 mock_ha.helpers.update_coordinator.DataUpdateCoordinator = _DataUpdateCoordinator
 mock_ha.helpers.update_coordinator.UpdateFailed = _UpdateFailed
 mock_ha.helpers.storage.Store = MagicMock()
+mock_ha.const.EntityCategory = MagicMock()
 
 mock_ha.util.dt.parse_datetime = isoparse
 mock_ha.util.dt.now = lambda: datetime.now(timezone.utc)

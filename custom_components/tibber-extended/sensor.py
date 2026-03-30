@@ -19,6 +19,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
+from homeassistant.const import EntityCategory
 
 from .const import (
     CONF_ACCESS_TOKEN,
@@ -279,7 +280,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
-            "User-Agent": "HomeAssistant/Tibber-Extended (1.2.1)",
+            "User-Agent": "HomeAssistant/Tibber-Extended (1.2.2)",
         }
 
         max_attempts = 3
@@ -644,7 +645,7 @@ class TibberDetailsSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = f"{home_name} {label}"
         self._attr_unique_id = f"{home_id}_{key}"
         self._attr_icon = icon
-        self._attr_entity_category = "diagnostic"
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def available(self) -> bool:
