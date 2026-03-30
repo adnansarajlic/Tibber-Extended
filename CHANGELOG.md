@@ -2,7 +2,12 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
-## [1.2.1] - 2026-03-30
+## [1.2.2] - 2026-03-30
+ 
+ ### Fixed
+ - Åtgärdat `ValueError` för `entity_category`. Nu används `EntityCategory.DIAGNOSTIC` istället för en sträng.
+ 
+-## [1.2.1] - 2026-03-30
 
 ### Fixed
 - Åtgärdat `ModuleNotFoundError` för `RestoreEntity`. Importen flyttad från `components.restore_state` till `helpers.restore_state`.
