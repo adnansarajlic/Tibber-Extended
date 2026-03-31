@@ -213,12 +213,12 @@ class TibberTargetHoursBinarySensor(RestoreEntity, BinarySensorEntity):
         if not force_update and self.period_start and self.period_end:
             try:
                 from dateutil.parser import isoparse
-                p_start = isoparse(self.period_start)
-                if p_start > now:
+                p_end = isoparse(self.period_end)
+                if p_end > now:
                     # Kontrollera om priserna för detta fönster fortfarande finns i koordinatorn
                     all_prices = data[self.home_id].get("today", []) + data[self.home_id].get("tomorrow", [])
                     if any(p["startsAt"] == self.period_start for p in all_prices):
-                        _LOGGER.debug(f"Stabilitet: Behåller framtida fönster {self.period_start} för {self._attr_name}")
+                        _LOGGER.debug(f"Stabilitet: Behåller fönster {self.period_start} för {self._attr_name} (fortfarande aktivt eller i framtiden)")
                         return
             except Exception as e:
                 _LOGGER.debug(f"Kunde inte validera existerande fönster: {e}")

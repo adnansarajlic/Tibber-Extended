@@ -2,6 +2,11 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.2.3] - 2026-03-31
+ 
+### Fixed
+- **Stabilitetsfix för aktiva fönster**: Åtgärdat ett kritiskt fel där "Best Price"-sensorer oavsiktligt räknades om exakt när deras fönster startade, vilket orsakade hopp till andra tider i förtid (när ny prisdata inkom under körning). Nu låses fönstret fast så länge det är *aktivt* (`period_end > now`).
+
 ## [1.2.2] - 2026-03-30
  
  ### Fixed
