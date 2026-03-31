@@ -212,6 +212,39 @@ class TestBestPriceStability:
         sensor._calculate_period()
         assert sensor.period_start == future_start_iso
 
+    def test_active_window_preserved(self):
+        """Fönstret ska bevaras om pågående, så att det inte hoppar i mitten av en körning."""
+        coordinator = MagicMock()
+        coordinator.entry.options = {"restrict_time_start": "", "restrict_time_end": ""}
+        coordinator.entry.data = {"restrict_time_start": "", "restrict_time_end": ""}
+
+        now = datetime.now(timezone.utc)
+        # Sätt fönstret till att ha börjat för 30 minuter sedan och pågår 30 minuter till
+        active_start = (now - timedelta(minutes=30)).replace(second=0, microsecond=0)
+        active_end = (active_start + timedelta(hours=1))
+
+        sensor = TibberTargetHoursBinarySensor(
+            coordinator, "h1", "Test", "best", 1.0, "HOURLY"
+        )
+        sensor.period_start = active_start.isoformat()
+        sensor.period_end = active_end.isoformat()
+
+        coordinator.data = {
+            "h1": {
+                "today": [
+                    {"total": 10.0, "startsAt": active_start.isoformat()},
+                    {"total": 0.1, "startsAt": (now + timedelta(hours=2)).isoformat()},
+                ],
+                "tomorrow": []
+            }
+        }
+        coordinator._home_timezones = {"h1": "UTC"}
+        coordinator._force_update = False
+
+        sensor._calculate_period()
+        # Stabilitetslogiken ska gälla för p_end > now, så vi stannar kvar på samma span
+        assert sensor.period_start == active_start.isoformat()
+
     def test_force_update_overrides_stability(self):
         """Force update ska tillåta omberäkning trots framtida fönster."""
         coordinator = MagicMock()
