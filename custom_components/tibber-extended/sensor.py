@@ -225,7 +225,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
                             price_date = st.astimezone(tz).date()
                         except Exception:
                             price_date = st.astimezone(now.tzinfo).date()
-                            
+
                         if price_date < now_date:
                             _LOGGER.info(f"Cached data for {home_id} is old ({price_date}), forcing refresh")
                             home_data["today"] = []
