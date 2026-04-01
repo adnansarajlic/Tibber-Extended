@@ -2,6 +2,11 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.2.4] - 2026-04-01
+ 
+### Fixed
+- **Smart Caching datumvalidering**: Åtgärdat ett fel där caching-mekanismen bevarade och antog att "gådagens" priser var dagens priser om Home Assistant var avstängd under själva midnatts-övergången. Detta gjorde att sensorn saknade giltiga timpriser och övergick till "unknown"-status. Nu raderas gammal cache automatiskt om prisdatumen inte stämmer överens med dagens datum.
+
 ## [1.2.3] - 2026-03-31
  
 ### Fixed

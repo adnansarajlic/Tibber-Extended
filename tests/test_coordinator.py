@@ -50,7 +50,7 @@ class TestSmartCaching:
         with patch.object(coordinator, "_now_in_home_tz") as m_now, \
              patch.object(coordinator, "async_save_to_storage", new_callable=AsyncMock):
             m_now.return_value = datetime(2024, 1, 1, 10, 0)
-            coordinator.data = {"h1": {"today": [{"total": 1}], "tomorrow": []}}
+            coordinator.data = {"h1": {"today": [{"total": 1, "startsAt": "2024-01-01T10:00:00Z"}], "tomorrow": []}}
 
             with patch("tibber_extended.sensor.async_get_clientsession") as m_sess:
                 await coordinator._async_update_data()
@@ -67,7 +67,7 @@ class TestSmartCaching:
 
         with patch.object(coordinator, "_now_in_home_tz") as m_now:
             m_now.return_value = datetime(2024, 1, 1, 13, 0)
-            coordinator.data = {"h1": {"today": [{"total": 1}], "tomorrow": []}}
+            coordinator.data = {"h1": {"today": [{"total": 1, "startsAt": "2024-01-01T10:00:00Z"}], "tomorrow": []}}
 
             with patch("tibber_extended.sensor.async_get_clientsession") as m_sess:
                 try:
@@ -88,7 +88,7 @@ class TestSmartCaching:
 
         with patch.object(coordinator, "_now_in_home_tz") as m_now:
             m_now.return_value = datetime(2024, 1, 1, 10, 0)
-            coordinator.data = {"h1": {"today": [{"total": 1}], "tomorrow": []}}
+            coordinator.data = {"h1": {"today": [{"total": 1, "startsAt": "2024-01-01T10:00:00Z"}], "tomorrow": []}}
 
             with patch("tibber_extended.sensor.async_get_clientsession") as m_sess:
                 try:

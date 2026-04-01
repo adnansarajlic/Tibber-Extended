@@ -208,8 +208,28 @@ class TibberDataCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Fetch data from Tibber API."""
         now = self._now_in_home_tz()
+        now_date = now.date()
         now_time = now.time()
         fetch_tomorrow = now_time >= time(12, 45)
+
+        # VALIDATE CACHE DATES
+        if self.data:
+            for home_id, home_data in self.data.items():
+                today_prices = home_data.get("today", [])
+                if today_prices:
+                    st = dt_util.parse_datetime(today_prices[0]["startsAt"])
+                    if st:
+                        tz_name = self._home_timezones.get(home_id)
+                        try:
+                            tz = ZoneInfo(tz_name) if tz_name else now.tzinfo
+                            price_date = st.astimezone(tz).date()
+                        except Exception:
+                            price_date = st.astimezone(now.tzinfo).date()
+
+                        if price_date < now_date:
+                            _LOGGER.info(f"Cached data for {home_id} is old ({price_date}), forcing refresh")
+                            home_data["today"] = []
+                            home_data["tomorrow"] = []
 
         # SMART CACHING
         if self.data and not self._force_update:
@@ -280,7 +300,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
-            "User-Agent": "HomeAssistant/Tibber-Extended (1.2.3)",
+            "User-Agent": "HomeAssistant/Tibber-Extended (1.2.4)",
         }
 
         max_attempts = 3
