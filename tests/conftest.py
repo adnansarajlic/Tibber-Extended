@@ -42,6 +42,11 @@ class _CoordinatorEntity:
     def __init__(self, coordinator):
         self.coordinator = coordinator
 
+class _OptionsFlow:
+    """Stub för OptionsFlow."""
+    def async_create_entry(self, title, data):
+        return {"type": "create_entry", "title": title, "data": data}
+
 class _DataUpdateCoordinator:
     def __init__(self, hass, logger, *, name, update_interval):
         self.hass = hass
@@ -72,6 +77,7 @@ sys.modules["homeassistant.helpers.restore_state"] = mock_ha.helpers.restore_sta
 sys.modules["homeassistant.config_entries"] = mock_ha.config_entries
 sys.modules["homeassistant.core"] = mock_ha.core
 sys.modules["homeassistant.exceptions"] = mock_ha.exceptions
+sys.modules["homeassistant.data_entry_flow"] = mock_ha.data_entry_flow
 sys.modules["homeassistant.helpers"] = mock_ha.helpers
 sys.modules["homeassistant.helpers.aiohttp_client"] = mock_ha.helpers.aiohttp_client
 sys.modules["homeassistant.helpers.entity_platform"] = mock_ha.helpers.entity_platform
@@ -91,11 +97,13 @@ mock_ha.helpers.update_coordinator.DataUpdateCoordinator = _DataUpdateCoordinato
 mock_ha.helpers.update_coordinator.UpdateFailed = _UpdateFailed
 mock_ha.helpers.storage.Store = MagicMock()
 mock_ha.const.EntityCategory = MagicMock()
+mock_ha.config_entries.OptionsFlow = _OptionsFlow
 
 mock_ha.util.dt.parse_datetime = isoparse
 mock_ha.util.dt.now = lambda: datetime.now(timezone.utc)
 
 sys.modules["aiohttp"] = MagicMock()
+sys.modules["voluptuous"] = MagicMock()
 
 
 # =============================================================
@@ -129,3 +137,4 @@ def _load_module(name, filename):
 
 _load_module("tibber_extended.sensor", "sensor.py")
 _load_module("tibber_extended.binary_sensor", "binary_sensor.py")
+_load_module("tibber_extended.config_flow", "config_flow.py")

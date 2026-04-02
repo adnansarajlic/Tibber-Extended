@@ -2,6 +2,11 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.2.6] - 2026-04-02
+ 
+### Fixed
+- **Inställningar (Options Flow)**: Åtgärdat en irriterande bugg i inställningsmenyn där det inte gick att ta bort tidsbegränsningar (Time Restrictions) eller "Best Price Spans" efter att de väl satts. Tidigare läste integrationen oavsiktligt in gamla värden om man raderade texten, men nu kan man radera rutorna helt och spara, så töms restriktionerna som tänkt.
+
 ## [1.2.5] - 2026-04-02
  
 ### Fixed
