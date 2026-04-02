@@ -5,7 +5,7 @@ Täcker: is_on-logik, stabilitet, RestoreEntity, setup_entry, attribut,
         tröskelvärden, per-span restriktioner, orphan-cleanup.
 """
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 from datetime import datetime, timezone, timedelta
 
 from tibber_extended.binary_sensor import (
@@ -306,6 +306,38 @@ class TestBestPriceStability:
         sensor._calculate_period()
         # Passerat fönster → stabilitet gäller ej → omberäkning
         assert sensor.period_start == future_slot.isoformat()
+
+    @pytest.mark.asyncio
+    async def test_target_hours_registers_time_triggers(self, mock_coordinator):
+        """async_added_to_hass ska registrera triggers vid tidsslag."""
+        sensor = TibberTargetHoursBinarySensor(
+            mock_coordinator, "h1", "Test", "best", 1.0, "HOURLY"
+        )
+        sensor.hass = MagicMock()
+        sensor.async_on_remove = MagicMock()
+        
+        # Säkerställ att async_get_last_state inte krashar
+        sensor.async_get_last_state = AsyncMock(return_value=None)
+        sensor.async_write_ha_state = MagicMock()
+        
+        with patch("homeassistant.helpers.event.async_track_time_change") as m_track:
+            await sensor.async_added_to_hass()
+            
+            # HOURLY -> ska bara registreras en minut: 0
+            m_track.assert_called_once()
+            kwargs = m_track.call_args.kwargs
+            assert kwargs["minute"] == 0
+            assert kwargs["second"] == 2
+
+    @pytest.mark.asyncio
+    async def test_target_hours_update_state(self, mock_coordinator):
+        """_update_state ska anropa async_write_ha_state."""
+        sensor = TibberTargetHoursBinarySensor(
+            mock_coordinator, "h1", "Test", "best", 1.0, "HOURLY"
+        )
+        sensor.async_write_ha_state = MagicMock()
+        await sensor._update_state()
+        sensor.async_write_ha_state.assert_called_once()
 
 
 # =============================================================
