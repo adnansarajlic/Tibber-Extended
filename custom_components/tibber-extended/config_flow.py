@@ -177,6 +177,11 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
 
             if valid:
                 user_input[CONF_ACCESS_TOKEN] = token
+                
+                # Sätt värden till tomma strängar om användaren raderat dem
+                for key in (CONF_RESTRICT_TIME_START, CONF_RESTRICT_TIME_END, CONF_BEST_PRICE_SPANS):
+                    if key not in user_input:
+                        user_input[key] = ""
 
                 # Uppdatera config entry data
                 self.hass.config_entries.async_update_entry(
