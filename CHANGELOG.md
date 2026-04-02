@@ -2,6 +2,11 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.2.5] - 2026-04-02
+ 
+### Fixed
+- **Best Price Sensor status-uppdatering**: Löst ett kritiskt fel där Home Assistant inte väcktes för att uppdatera Best Price-sensorns status från "off" till "on" exakt när dess tidsfönster startade. Sensorn prenumererar nu på en intern händelse (async_track_time_change) som tvingar Home Assistant att läsa av klockan och uppdatera statusen vid varje hel, kvart och halvtimme, vilket gör att automationer triggas prick på minuten.
+
 ## [1.2.4] - 2026-04-01
  
 ### Fixed

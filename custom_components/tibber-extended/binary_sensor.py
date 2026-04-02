@@ -180,6 +180,7 @@ class TibberTargetHoursBinarySensor(RestoreEntity, BinarySensorEntity):
 
     async def async_added_to_hass(self):
         """When entity is added to hass."""
+        await super().async_added_to_hass()
 
         # Restore state
         if (last_state := await self.async_get_last_state()) is not None:
@@ -191,7 +192,20 @@ class TibberTargetHoursBinarySensor(RestoreEntity, BinarySensorEntity):
         self.async_on_remove(
             self.coordinator.async_add_listener(self._handle_coordinator_update)
         )
+
+        # Se till att HA beräknar is_on baserat på klockan exakt när det skiftar över.
+        minutes = [0, 15, 30, 45] if self.resolution == "QUARTER_HOURLY" else [0]
+        for minute in minutes:
+            from homeassistant.helpers.event import async_track_time_change
+            self.async_on_remove(
+                async_track_time_change(self.hass, self._update_state, minute=minute, second=2)
+            )
+
         self._handle_coordinator_update()
+
+    async def _update_state(self, now=None):
+        """Update state when time passes into or out of the window."""
+        self.async_write_ha_state()
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
