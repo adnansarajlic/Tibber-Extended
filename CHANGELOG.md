@@ -2,6 +2,13 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.2.7] - 2026-04-03
+ 
+### Added
+- **Ny knapp: Re-calculate Best Price**: En ny knapp-entitet har lagts till som låter dig tvinga fram en omedelbar omräkning av alla Best Price-fönster utan att vänta på nästa polling eller tidsschema.
+- **Checkruta i inställningar**: Lagt till "Tvinga omräkning vid Spara" i konfigureringsmenyn. Om denna väljs så räknas alla fönster om direkt när du sparar dina nya inställningar.
+- **Smart filtrering vid omräkning**: När en manuell omräkning triggas (via knapp eller inställning) filtrerar integrationen nu automatiskt bort priser som redan passerat i tiden. Detta säkerställer att det nya fönstret som väljs alltid ligger i framtiden eller slutar i framtiden.
+
 ## [1.2.6] - 2026-04-02
  
 ### Fixed

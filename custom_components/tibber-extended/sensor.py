@@ -300,7 +300,7 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
-            "User-Agent": "HomeAssistant/Tibber-Extended (1.2.6)",
+            "User-Agent": "HomeAssistant/Tibber-Extended (1.2.7)",
         }
 
         max_attempts = 3

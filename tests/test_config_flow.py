@@ -13,7 +13,7 @@ from tibber_extended.const import (
 @pytest.mark.asyncio
 async def test_options_flow_clears_empty_fields():
     """Om användaren tömmer tidsrestriktioner i formuläret ska config uppdateras med tomma strängar."""
-    
+
     # Skapa mock för config entry (befintlig konfig)
     mock_entry = MagicMock()
     mock_entry.data = {
@@ -22,11 +22,11 @@ async def test_options_flow_clears_empty_fields():
         CONF_RESTRICT_TIME_END: "06:00",
         CONF_BEST_PRICE_SPANS: "1, 2, 3",
     }
-    
+
     # Initialisera options flow
     flow = TibberExtendedOptionsFlow(mock_entry)
     flow.hass = MagicMock()
-    
+
     # Mocka token-validering att alltid returnera True
     flow._validate_token = AsyncMock(return_value=True)
 
@@ -39,7 +39,7 @@ async def test_options_flow_clears_empty_fields():
 
     result = await flow.async_step_init(user_input=user_input)
     assert result["type"] == "create_entry"
-    
+
     # Kontrollera vad som HA sparar. '_config_entry.data' MÅSTE ha tomma strängar
     call_kwargs = flow.hass.config_entries.async_update_entry.call_args.kwargs
     new_data = call_kwargs["data"]

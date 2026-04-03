@@ -315,14 +315,14 @@ class TestBestPriceStability:
         )
         sensor.hass = MagicMock()
         sensor.async_on_remove = MagicMock()
-        
+
         # Säkerställ att async_get_last_state inte krashar
         sensor.async_get_last_state = AsyncMock(return_value=None)
         sensor.async_write_ha_state = MagicMock()
-        
+
         with patch("homeassistant.helpers.event.async_track_time_change") as m_track:
             await sensor.async_added_to_hass()
-            
+
             # HOURLY -> ska bara registreras en minut: 0
             m_track.assert_called_once()
             kwargs = m_track.call_args.kwargs

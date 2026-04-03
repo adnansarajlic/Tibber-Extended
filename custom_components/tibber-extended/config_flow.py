@@ -24,6 +24,8 @@ from .const import (
     DEFAULT_BEST_PRICE_SPANS,
     CONF_USE_SUBUNITS,
     DEFAULT_USE_SUBUNITS,
+    CONF_RECALCULATE_ON_SAVE,
+    DEFAULT_RECALCULATE_ON_SAVE,
     CONF_RESTRICT_TIME_START,
     CONF_RESTRICT_TIME_END,
     DEFAULT_RESTRICT_TIME_START,
@@ -183,6 +185,10 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     if key not in user_input:
                         user_input[key] = ""
 
+                # Kolla om användaren begärt en tvingande omräkning av best price
+                if user_input.pop(CONF_RECALCULATE_ON_SAVE, False):
+                    self.hass.data.setdefault("tibber_extended_flags", {})[f"force_recalc_{self._config_entry.entry_id}"] = True
+
                 # Uppdatera config entry data
                 self.hass.config_entries.async_update_entry(
                     self._config_entry,
@@ -239,6 +245,10 @@ class TibberExtendedOptionsFlow(config_entries.OptionsFlow):
                     CONF_RESTRICT_TIME_END,
                     description={"suggested_value": self._config_entry.data.get(CONF_RESTRICT_TIME_END, DEFAULT_RESTRICT_TIME_END)},
                 ): str,
+                vol.Optional(
+                    CONF_RECALCULATE_ON_SAVE,
+                    default=DEFAULT_RECALCULATE_ON_SAVE,
+                ): bool,
             }
         )
 

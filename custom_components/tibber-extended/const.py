@@ -23,6 +23,10 @@ DEFAULT_BEST_PRICE_SPANS = "3.0"
 CONF_PRICE_THRESHOLD = "price_threshold"
 DEFAULT_PRICE_THRESHOLD = 0.50
 
+# Recalculate Option
+CONF_RECALCULATE_ON_SAVE = "recalculate_on_save"
+DEFAULT_RECALCULATE_ON_SAVE = False
+
 # Optional Time Restrictions
 CONF_RESTRICT_TIME_START = "restrict_time_start"
 CONF_RESTRICT_TIME_END = "restrict_time_end"
