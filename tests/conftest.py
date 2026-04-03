@@ -29,6 +29,13 @@ class _BinarySensorEntity:
     def async_on_remove(self, func):
         pass
 
+class _ButtonEntity:
+    @property
+    def name(self):
+        return getattr(self, "_attr_name", None)
+    def async_on_remove(self, func):
+        pass
+
 class _RestoreEntity:
     """Stub för RestoreEntity — sparar/återställer state över omstarter."""
     async def async_get_last_state(self):
@@ -73,6 +80,7 @@ sys.modules["homeassistant"] = mock_ha
 sys.modules["homeassistant.components"] = mock_ha.components
 sys.modules["homeassistant.components.sensor"] = mock_ha.components.sensor
 sys.modules["homeassistant.components.binary_sensor"] = mock_ha.components.binary_sensor
+sys.modules["homeassistant.components.button"] = mock_ha.components.button
 sys.modules["homeassistant.helpers.restore_state"] = mock_ha.helpers.restore_state
 sys.modules["homeassistant.config_entries"] = mock_ha.config_entries
 sys.modules["homeassistant.core"] = mock_ha.core
@@ -91,6 +99,7 @@ sys.modules["homeassistant.const"] = mock_ha.const
 mock_ha.components.sensor.SensorEntity = _SensorEntity
 mock_ha.components.sensor.SensorDeviceClass = MagicMock()
 mock_ha.components.binary_sensor.BinarySensorEntity = _BinarySensorEntity
+mock_ha.components.button.ButtonEntity = _ButtonEntity
 mock_ha.helpers.restore_state.RestoreEntity = _RestoreEntity
 mock_ha.helpers.update_coordinator.CoordinatorEntity = _CoordinatorEntity
 mock_ha.helpers.update_coordinator.DataUpdateCoordinator = _DataUpdateCoordinator
@@ -138,3 +147,4 @@ def _load_module(name, filename):
 _load_module("tibber_extended.sensor", "sensor.py")
 _load_module("tibber_extended.binary_sensor", "binary_sensor.py")
 _load_module("tibber_extended.config_flow", "config_flow.py")
+_load_module("tibber_extended.button", "button.py")

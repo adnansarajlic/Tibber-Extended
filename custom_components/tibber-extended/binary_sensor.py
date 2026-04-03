@@ -58,6 +58,8 @@ async def async_setup_entry(
     if not coordinator.data:
         await coordinator.async_config_entry_first_refresh()
 
+    force_recalc = hass.data.get("tibber_extended_flags", {}).pop(f"force_recalc_{entry.entry_id}", False)
+
     if coordinator.data:
         for home_id in coordinator.data:
             _LOGGER.info(f"Creating binary sensors for home: {home_id}")
@@ -66,14 +68,14 @@ async def async_setup_entry(
             for span, span_start, span_end in best_spans:
                 entities.append(
                     TibberTargetHoursBinarySensor(
-                        coordinator, home_id, home_name, "best", span, resolution, span_start, span_end
+                        coordinator, home_id, home_name, "best", span, resolution, span_start, span_end, force_recalc
                     )
                 )
 
             # En peak-sensor per hem (som förut)
             entities.append(
                 TibberTargetHoursBinarySensor(
-                    coordinator, home_id, home_name, "peak", peak_target, resolution
+                    coordinator, home_id, home_name, "peak", peak_target, resolution, None, None, force_recalc
                 )
             )
 
@@ -108,10 +110,13 @@ async def async_setup_entry(
 class TibberTargetHoursBinarySensor(RestoreEntity, BinarySensorEntity):
     """Binary sensor for cheapest/most expensive consecutive hours."""
 
-    def __init__(self, coordinator, home_id, home_name, sensor_type, target_hours, resolution, restrict_start=None, restrict_end=None):
-        """Initialize the binary sensor."""
+    def __init__(
+        self, coordinator, home_id, home_name, sensor_type, target_hours, resolution, restrict_start=None, restrict_end=None, force_recalc=False
+    ):
+        """Initialize the target hours binary sensor."""
         self.coordinator = coordinator
         self.home_id = home_id
+        self._init_force_recalc = force_recalc
         self.sensor_type = sensor_type  # "best" or "peak"
         self.target_hours = float(target_hours)
         self.resolution = resolution
@@ -242,6 +247,26 @@ class TibberTargetHoursBinarySensor(RestoreEntity, BinarySensorEntity):
 
         # Kombinera listorna för att kunna hitta fönster som spänner över midnatt
         all_prices = today_prices + tomorrow_prices
+
+        force_update = getattr(self.coordinator, "_force_update", False) or getattr(self, "_init_force_recalc", False)
+
+        # Filtrera bort priser som redan passerat ifall vi har en tvingad omräkning
+        if force_update:
+            from dateutil.parser import isoparse
+            if self.resolution == "QUARTER_HOURLY":
+                pass_delta = timedelta(minutes=15)
+            else:
+                pass_delta = timedelta(hours=1)
+
+            filtered_prices = []
+            for p in all_prices:
+                try:
+                    if isoparse(p["startsAt"]) + pass_delta > now:
+                        filtered_prices.append(p)
+                except Exception:
+                    filtered_prices.append(p)
+            all_prices = filtered_prices
+            self._init_force_recalc = False # Bara utför första gången för options-uppladdningen
 
         if not all_prices:
             return
