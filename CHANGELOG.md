@@ -2,6 +2,17 @@
 
 Alla anmärkningsvärda ändringar i projektet kommer att dokumenteras i denna fil.
 
+## [1.2.8] - 2026-05-15
+
+### Fixed
+- **Midnattsövergång: Sensor blir inte längre "unknown"**: Åtgärdat ett kritiskt fel där `electricity_price`-sensorn blev otillgänglig vid midnatt och förblev det i upp till 13 timmar. Tre samverkande buggar identifierades och fixades:
+  - Midnight shift hanterar nu korrekt fallet där morgondagens priser saknas — rensar gammal data och triggar en omedelbar API-refresh.
+  - Ny post-midnight trigger vid 00:05 som automatiskt hämtar färsk data om dagens priser saknas efter midnatt.
+  - Prissökningen (`_get_current_price_point`) söker nu i både `today` och `tomorrow` som fallback, vilket eliminerar en kortvarig "unknown"-glitch vid 23:59:55.
+
+### Added
+- **6 nya enhetstester** för midnattsscenarier (totalt 108 tester, alla godkända).
+
 ## [1.2.7] - 2026-04-03
  
 ### Added
