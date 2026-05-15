@@ -23,7 +23,7 @@ class TestScheduling:
 
         with patch("tibber_extended.sensor.async_track_time_change") as m_track:
             TibberDataCoordinator(mock_hass, mock_entry)
-            assert m_track.call_count == 4
+            assert m_track.call_count == 5
 
             scheduled_hours = [
                 call.kwargs.get("hour")
@@ -160,6 +160,104 @@ class TestMidnightShift:
 
         # Ska inte krascha
         await coordinator._handle_midnight_shift(mock_now)
+
+    @pytest.mark.asyncio
+    async def test_midnight_shift_empty_tomorrow_triggers_refresh(self):
+        """Om tomorrow är tom ska midnight shift rensa today och trigga refresh."""
+        mock_hass = MagicMock()
+        mock_entry = MagicMock()
+        mock_entry.data = {"access_token": "test", "currency": "SEK"}
+        coordinator = TibberDataCoordinator(mock_hass, mock_entry)
+        coordinator.data = {"h1": {"today": [{"total": 0.5, "startsAt": "2024-01-01T10:00:00Z"}], "tomorrow": []}}
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = datetime(2024, 1, 2).date()
+
+        with patch.object(coordinator, "async_request_refresh", new_callable=AsyncMock) as m_refresh, \
+             patch("tibber_extended.sensor.asyncio.sleep", new_callable=AsyncMock):
+            await coordinator._handle_midnight_shift(mock_now)
+            # Today ska ha rensats
+            assert coordinator.data["h1"]["today"] == []
+            # En refresh ska ha triggats
+            m_refresh.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_midnight_shift_clears_stale_today(self):
+        """Om tomorrow saknas ska gårdagens today-data inte kvarstå efter shift."""
+        mock_hass = MagicMock()
+        mock_entry = MagicMock()
+        mock_entry.data = {"access_token": "test", "currency": "SEK"}
+        coordinator = TibberDataCoordinator(mock_hass, mock_entry)
+        old_prices = [{"total": 0.5, "startsAt": "2024-01-01T10:00:00Z"}]
+        coordinator.data = {"h1": {"today": old_prices, "tomorrow": []}}
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = datetime(2024, 1, 2).date()
+
+        with patch.object(coordinator, "async_request_refresh", new_callable=AsyncMock), \
+             patch("tibber_extended.sensor.asyncio.sleep", new_callable=AsyncMock):
+            await coordinator._handle_midnight_shift(mock_now)
+            # Gammal data ska INTE finnas kvar
+            assert coordinator.data["h1"]["today"] != old_prices
+            assert coordinator.data["h1"]["today"] == []
+
+
+class TestPostMidnightRefresh:
+    """Tester för post-midnight refresh (00:05)."""
+
+    @pytest.mark.asyncio
+    async def test_post_midnight_refresh_scheduled(self):
+        """Verifiera att en trigger schemaläggs vid 00:05."""
+        mock_hass = MagicMock()
+        mock_entry = MagicMock()
+        mock_entry.data = {"access_token": "test", "currency": "SEK"}
+
+        with patch("tibber_extended.sensor.async_track_time_change") as m_track:
+            TibberDataCoordinator(mock_hass, mock_entry)
+            # Ska ha 5 triggers: 13:00, 14:00, 15:00, 23:59:55, 00:05
+            assert m_track.call_count == 5
+
+            scheduled = [
+                (call.kwargs.get("hour"), call.kwargs.get("minute"))
+                for call in m_track.call_args_list
+            ]
+            assert (0, 5) in scheduled
+
+    @pytest.mark.asyncio
+    async def test_post_midnight_fetches_when_today_empty(self):
+        """Post-midnight ska hämta data om today är tom."""
+        mock_hass = MagicMock()
+        mock_entry = MagicMock()
+        mock_entry.data = {"access_token": "test", "currency": "SEK"}
+        coordinator = TibberDataCoordinator(mock_hass, mock_entry)
+        coordinator.data = {"h1": {"today": [], "tomorrow": []}}
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = datetime(2024, 1, 2).date()
+
+        with patch.object(coordinator, "async_request_refresh", new_callable=AsyncMock) as m_refresh:
+            await coordinator._handle_post_midnight_refresh(mock_now)
+            m_refresh.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_post_midnight_skips_when_data_fresh(self):
+        """Post-midnight ska INTE hämta data om today redan har färsk data."""
+        mock_hass = MagicMock()
+        mock_entry = MagicMock()
+        mock_entry.data = {"access_token": "test", "currency": "SEK"}
+        coordinator = TibberDataCoordinator(mock_hass, mock_entry)
+        coordinator.data = {"h1": {
+            "today": [{"total": 0.5, "startsAt": "2024-01-02T00:00:00+01:00"}],
+            "tomorrow": []
+        }}
+
+        mock_now = MagicMock()
+        mock_now.date.return_value = datetime(2024, 1, 2).date()
+        mock_now.tzinfo = None
+
+        with patch.object(coordinator, "async_request_refresh", new_callable=AsyncMock) as m_refresh:
+            await coordinator._handle_post_midnight_refresh(mock_now)
+            m_refresh.assert_not_called()
 
 
 class TestPersistentStorage:
