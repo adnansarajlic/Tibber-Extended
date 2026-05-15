@@ -157,6 +157,16 @@ class TibberDataCoordinator(DataUpdateCoordinator):
         )
         _LOGGER.info("Scheduled price shift 5 seconds before midnight (23:59:55)")
 
+        # Post-midnight refresh: hämta färsk data om today saknas efter midnattsövergången
+        async_track_time_change(
+            self.hass,
+            self._handle_post_midnight_refresh,
+            hour=0,
+            minute=5,
+            second=0,
+        )
+        _LOGGER.info("Scheduled post-midnight refresh at 00:05")
+
     async def _handle_time_trigger(self, now):
         """Handle time-based update trigger."""
         # Lägg till korta slumpmässiga fördröjningar (jitter) för att undvika rate limiting
@@ -179,16 +189,72 @@ class TibberDataCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("No data to shift at midnight")
             return
 
+        needs_refresh = False
         for home_id in self.data.keys():
             tomorrow_prices = self.data[home_id].get("tomorrow", [])
             if tomorrow_prices:
                 _LOGGER.info(f"Shifting prices for home {home_id}")
                 self.data[home_id]["today"] = tomorrow_prices
                 self.data[home_id]["tomorrow"] = []
+            else:
+                _LOGGER.warning(
+                    f"No tomorrow prices for home {home_id} at midnight shift. "
+                    "Clearing stale today data to trigger refresh."
+                )
+                self.data[home_id]["today"] = []
+                needs_refresh = True
 
         self._last_midnight_shift = current_date
         self.async_set_updated_data(self.data)
         _LOGGER.info("Midnight shift completed")
+
+        if needs_refresh:
+            _LOGGER.info("Scheduling immediate refresh due to missing tomorrow prices")
+            await asyncio.sleep(10)  # Vänta tills vi passerat midnatt
+            await self.async_request_refresh()
+
+    async def _handle_post_midnight_refresh(self, now):
+        """Fetch fresh data after midnight if today's prices are missing."""
+        if not self.data:
+            _LOGGER.info("Post-midnight refresh: No data at all, fetching")
+            await self.async_request_refresh()
+            return
+
+        needs_fetch = False
+        now_date = now.date() if hasattr(now, 'date') else self._now_in_home_tz().date()
+
+        for home_id, home_data in self.data.items():
+            today_prices = home_data.get("today", [])
+            if not today_prices:
+                _LOGGER.info(f"Post-midnight refresh: No today prices for {home_id}")
+                needs_fetch = True
+                break
+
+            # Kontrollera att priserna faktiskt är för idag
+            first_price = today_prices[0]
+            st = dt_util.parse_datetime(first_price.get("startsAt", ""))
+            if st:
+                tz_name = self._home_timezones.get(home_id)
+                try:
+                    tz = ZoneInfo(tz_name) if tz_name else now.tzinfo
+                    price_date = st.astimezone(tz).date() if tz else st.date()
+                except Exception:
+                    price_date = st.date()
+
+                if price_date < now_date:
+                    _LOGGER.info(
+                        f"Post-midnight refresh: Today prices for {home_id} are stale "
+                        f"(date: {price_date}, expected: {now_date})"
+                    )
+                    home_data["today"] = []
+                    needs_fetch = True
+                    break
+
+        if needs_fetch:
+            _LOGGER.info("Post-midnight refresh: Fetching fresh data from Tibber API")
+            await self.async_request_refresh()
+        else:
+            _LOGGER.debug("Post-midnight refresh: Today prices already available, skipping")
 
     def _now_in_home_tz(self, home_id=None):
         """Get current time in the home's timezone."""
@@ -439,21 +505,25 @@ class TibberPriceSensor(CoordinatorEntity, SensorEntity):
         if not self.available:
             return None
         now = self.coordinator._now_in_home_tz(self._home_id)
-        today_prices = self.coordinator.data[self._home_id]["today"]
-        for p in today_prices:
-            st = dt_util.parse_datetime(p["startsAt"])
-            if not st:
-                continue
-            # Konvertera till hemmets tidszon för korrekt jämförelse
-            home_tz_name = self.coordinator._home_timezones.get(self._home_id)
-            if home_tz_name:
-                try:
-                    st = st.astimezone(ZoneInfo(home_tz_name))
-                except (ZoneInfoNotFoundError, Exception):
-                    pass
-            interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
-            if st <= now < st + timedelta(minutes=interval):
-                return p
+        home_data = self.coordinator.data[self._home_id]
+        today_prices = home_data.get("today", [])
+        tomorrow_prices = home_data.get("tomorrow", [])
+        interval = 15 if self.coordinator.resolution == "QUARTER_HOURLY" else 60
+        home_tz_name = self.coordinator._home_timezones.get(self._home_id)
+
+        # Sök i båda listorna: today först, sedan tomorrow som fallback
+        for price_list in (today_prices, tomorrow_prices):
+            for p in price_list:
+                st = dt_util.parse_datetime(p["startsAt"])
+                if not st:
+                    continue
+                if home_tz_name:
+                    try:
+                        st = st.astimezone(ZoneInfo(home_tz_name))
+                    except (ZoneInfoNotFoundError, Exception):
+                        pass
+                if st <= now < st + timedelta(minutes=interval):
+                    return p
         return None
 
     @property
